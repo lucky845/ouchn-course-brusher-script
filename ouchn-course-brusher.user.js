@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         国家开放大学实验学院自动刷课脚本
-// @namespace    https://github.com
+// @namespace    https://github.com/lucky845/ouchn-course-brusher-script
 // @version      1.2
-// @description  自动刷完学习项目
+// @description  自动识别并处理Moodle平台的学习项目，包括视频自动播放、文档自动处理等
 // @author       You
 // @match        https://moodle.syxy.ouchn.cn/mod/*
 // @grant        none
 // @run-at       document-idle
+// @license      MIT
 // @downloadURL  https://github.com/lucky845/ouchn-course-brusher-script/raw/refs/heads/main/ouchn-course-brusher.user.js
 // @updateURL    https://github.com/lucky845/ouchn-course-brusher-script/raw/refs/heads/main/ouchn-course-brusher.user.js
 // ==/UserScript==
