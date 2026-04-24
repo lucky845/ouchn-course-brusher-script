@@ -7,6 +7,8 @@
 // @match        https://moodle.syxy.ouchn.cn/mod/*
 // @grant        none
 // @run-at       document-idle
+// @downloadURL  https://github.com/lucky845/ouchn-course-brusher-script/raw/refs/heads/main/ouchn-course-brusher.user.js
+// @updateURL    https://github.com/lucky845/ouchn-course-brusher-script/raw/refs/heads/main/ouchn-course-brusher.user.js
 // ==/UserScript==
 
 (function() {
