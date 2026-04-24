@@ -3,7 +3,7 @@
 // @namespace    https://github.com/lucky845/ouchn-course-brusher-script
 // @version      1.2
 // @description  自动识别并处理Moodle平台的学习项目，包括视频自动播放、文档自动处理等
-// @author       You
+// @author       lucky845
 // @match        https://moodle.syxy.ouchn.cn/mod/*
 // @grant        none
 // @run-at       document-idle
