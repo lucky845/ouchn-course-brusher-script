@@ -868,6 +868,30 @@
         }
     }
 
+    // 暂停脚本函数
+    function pauseScript() {
+        scriptEnabled = false;
+        saveScriptEnabled(false);
+        updateStatus('所有学习项目已完成，脚本已自动暂停', 'success');
+        
+        // 更新UI状态
+        const toggle = document.getElementById('ouchn-brusher-toggle');
+        if (toggle) {
+            toggle.checked = false;
+        }
+        
+        const startButton = document.getElementById('ouchn-brusher-start');
+        const stopButton = document.getElementById('ouchn-brusher-stop');
+        if (startButton && stopButton) {
+            startButton.disabled = false;
+            startButton.style.opacity = '1';
+            startButton.style.cursor = 'pointer';
+            stopButton.disabled = true;
+            stopButton.style.opacity = '0.5';
+            stopButton.style.cursor = 'not-allowed';
+        }
+    }
+    
     // 处理Moodle平台的课程详情页
     function processMoodleCourse() {
         // 查找课程内容区域
@@ -891,6 +915,8 @@
             'database', // 数据库
             'workshop' // 工作坊
         ];
+        
+        let hasUncompletedItems = false;
         
         // 遍历学习项目，找到未完成的项目
         for (const item of learningItems) {
@@ -929,21 +955,25 @@
                     }
                 }
                 
-                if (requiresManualAction) {
-                    continue; // 跳过需要手动操作的项目
-                }
-                
-                // 查找项目链接
-                let link = item.querySelector('a');
-                if (!link) {
-                    // 尝试查找父元素中的链接
-                    link = item.closest('.activityinstance')?.querySelector('a');
-                }
-                if (link) {
-                    link.click();
-                    return;
+                if (!requiresManualAction) {
+                    hasUncompletedItems = true;
+                    // 查找项目链接
+                    let link = item.querySelector('a');
+                    if (!link) {
+                        // 尝试查找父元素中的链接
+                        link = item.closest('.activityinstance')?.querySelector('a');
+                    }
+                    if (link) {
+                        link.click();
+                        return;
+                    }
                 }
             }
+        }
+        
+        // 如果没有未完成的项目，暂停脚本
+        if (!hasUncompletedItems) {
+            pauseScript();
         }
     }
 
@@ -1191,6 +1221,13 @@
                     break;
                 }
             }
+        }
+        
+        // 检查是否是最后一项
+        if (currentIndex >= 0 && currentIndex === sidebarItems.length - 1) {
+            // 是最后一项，暂停脚本
+            pauseScript();
+            return;
         }
         
         // 从当前位置的下一个项目开始查找未完成的项目
