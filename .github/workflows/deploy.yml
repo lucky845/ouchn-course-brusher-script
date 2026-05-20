@@ -1,0 +1,41 @@
+name: Deploy to GreasyFork
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'ouchn-course-brusher.user.js'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update version
+        run: |
+          # 读取当前版本号
+          VERSION=$(grep -oP '@version\s+\K[\d.]+' ouchn-course-brusher.user.js)
+          echo "Current version: $VERSION"
+          
+          # 增加补丁版本号
+          IFS='.' read -r major minor patch <<< "$VERSION"
+          NEW_VERSION="$major.$minor.$((patch + 1))"
+          echo "New version: $NEW_VERSION"
+          
+          # 更新脚本中的版本号
+          sed -i "s/@version\s*$VERSION/@version $NEW_VERSION/" ouchn-course-brusher.user.js
+          
+          # 更新 README 中的版本说明
+          sed -i "s/v$VERSION:/v$NEW_VERSION:/" README.md
+          
+          echo "VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Commit and push
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "Auto-deploy v${{ env.VERSION }}"
+          committer_name: GitHub Actions
+          committer_email: actions@github.com
