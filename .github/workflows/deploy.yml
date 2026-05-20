@@ -1,8 +1,16 @@
 name: Deploy to GreasyFork
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (e.g. 1.3.1)'
+        required: true
+      update_readme:
+        description: 'Update README version history'
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   deploy:
@@ -12,25 +20,39 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get release version
+      - name: Validate version format
         run: |
-          RELEASE_VERSION=${{ github.event.release.tag_name }}
-          echo "Release version: $RELEASE_VERSION"
-          echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
+          VERSION="${{ github.event.inputs.version }}"
+          if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version format! Use format like 1.3.1"
+            exit 1
+          fi
+          echo "✓ Version format valid: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Update version in script
         run: |
-          # 读取当前版本号
           CURRENT_VERSION=$(grep -oP '@version\s+\K[\d.]+' ouchn-course-brusher.user.js)
           echo "Current version: $CURRENT_VERSION"
-          echo "New version: ${{ env.RELEASE_VERSION }}"
+          echo "New version: ${{ env.VERSION }}"
           
-          # 更新脚本中的版本号
-          sed -i "s/@version\s*$CURRENT_VERSION/@version ${{ env.RELEASE_VERSION }}/" ouchn-course-brusher.user.js
+          sed -i "s/@version\s*$CURRENT_VERSION/@version ${{ env.VERSION }}/" ouchn-course-brusher.user.js
 
-      - name: Commit and push
-        uses: EndBug/add-and-commit@v9
-        with:
-          message: "Deploy v${{ env.RELEASE_VERSION }} to GreasyFork"
-          committer_name: GitHub Actions
-          committer_email: actions@github.com
+      - name: Update README version history
+        if: ${{ github.event.inputs.update_readme == 'true' }}
+        run: |
+          # 在版本历史开头添加新版本
+          sed -i '/^## 版本历史/a\
+          - v${{ env.VERSION }}: 待发布更新' README.md
+
+                - name: Commit and push
+                  uses: EndBug/add-and-commit@v9
+                  with:
+                    message: "Deploy v${{ env.VERSION }} to GreasyFork"
+                    committer_name: GitHub Actions
+                    committer_email: actions@github.com
+
+                - name: Create Git tag
+                  run: |
+                    git tag -a "v${{ env.VERSION }}" -m "v${{ env.VERSION }}"
+                    git push origin "v${{ env.VERSION }}"
