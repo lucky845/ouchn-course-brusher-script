@@ -43,16 +43,16 @@ jobs:
         run: |
           # 在版本历史开头添加新版本
           sed -i '/^## 版本历史/a\
-- v${{ env.VERSION }}: 待发布更新' README.md
+          - v${{ env.VERSION }}: 待发布更新' README.md
 
-      - name: Commit and push
-        uses: EndBug/add-and-commit@v9
-        with:
-          message: "Deploy v${{ env.VERSION }} to GreasyFork"
-          committer_name: GitHub Actions
-          committer_email: actions@github.com
+                - name: Commit and push
+                  uses: EndBug/add-and-commit@v9
+                  with:
+                    message: "Deploy v${{ env.VERSION }} to GreasyFork"
+                    committer_name: GitHub Actions
+                    committer_email: actions@github.com
 
-      - name: Create Git tag
-        run: |
-          git tag -a "v${{ env.VERSION }}" -m "v${{ env.VERSION }}"
-          git push origin "v${{ env.VERSION }}"
+                - name: Create Git tag
+                  run: |
+                    git tag -a "v${{ env.VERSION }}" -m "v${{ env.VERSION }}"
+                    git push origin "v${{ env.VERSION }}"
