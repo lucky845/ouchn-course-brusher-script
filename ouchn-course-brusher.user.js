@@ -3,8 +3,8 @@
 // @namespace    https://github.com/lucky845/ouchn-course-brusher-script
 // @downloadURL  https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher.user.js
 // @updateURL    https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher.user.js
-// @version      1.3.0
-// @description  （个人自用）自动识别并处理Moodle平台的学习项目，包括视频自动播放、文档自动处理等。如果有更好的实现方式，欢迎参与贡献。
+// @version      1.4.0
+// @description  自动识别并处理Moodle平台的学习项目，包括视频自动播放、文档自动处理等。如果有更好的实现方式，欢迎参与贡献。（个人自用）
 // @author       lucky845
 // @match        https://moodle.syxy.ouchn.cn/mod/*
 // @grant        none
@@ -15,70 +15,163 @@
 (function() {
     'use strict';
 
-    // ==================== 配置管理 ====================
+    // ==================== 配置 ====================
     const STORAGE_KEY = {
         ENABLED: 'ouchn_brusher_enabled',
         POSITION: 'ouchn_brusher_position',
-        SETTINGS: 'ouchn_brusher_settings'
+        SETTINGS: 'ouchn_brusher_settings_v2',
+        SESSION: 'ouchn_brusher_session'
     };
 
     const DEFAULT_SETTINGS = {
         videoCheckInterval: 10000,
         pageWaitTime: 5000,
-        autoNavigate: true,
-        autoPauseOnComplete: true,
-        enableSoundOnInteraction: true,
-        debugMode: false
+        speedMode: 'normal',
+        antiDetection: true
     };
 
-    const MANUAL_ACTION_TYPES = ['forum', 'assign', 'quiz', 'survey', 'feedback', 'choice', 'database', 'workshop'];
+    const SPEED_MODES = {
+        normal: { videoCheck: 10000, pageWait: 5000 },
+        fast: { videoCheck: 5000, pageWait: 2000 },
+        stealth: { videoCheck: 30000, pageWait: 15000 }
+    };
 
-    // ==================== 全局状态 ====================
+    // ==================== 状态 ====================
     let scriptEnabled = true;
     let initialized = false;
     let settings = loadSettings();
-    let container = null;
-    let panel = null;
-    let button = null;
+    let sessionStats = loadSessionStats();
+    let container, panel, button;
 
     // ==================== 工具函数 ====================
     function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    function extractCourseId(url) {
-        url = url || window.location.href;
-        const match = url.match(/[?&]id=(\d+)/);
-        return match ? match[1] : null;
-    }
-
-    function buildCourseUrl(courseId) {
-        return `https://moodle.syxy.ouchn.cn/course/view.php?id=${courseId}`;
-    }
-
-    function isCoursePage(url) {
-        return (url || window.location.href).includes('/course/view.php');
+    function formatTime(ms) {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        if (hours > 0) return `${hours}小时${minutes % 60}分`;
+        if (minutes > 0) return `${minutes}分${seconds % 60}秒`;
+        return `${seconds}秒`;
     }
 
     function loadSettings() {
         try {
             const saved = localStorage.getItem(STORAGE_KEY.SETTINGS);
-            if (saved) {
-                return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
-            }
-        } catch (e) {
-            console.error('[刷课脚本] 加载设置失败:', e);
-        }
+            if (saved) return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+        } catch (e) {}
         return { ...DEFAULT_SETTINGS };
     }
 
-    // ==================== 日志系统 ====================
+    function saveSettings(newSettings) {
+        settings = { ...settings, ...newSettings };
+        localStorage.setItem(STORAGE_KEY.SETTINGS, JSON.stringify(settings));
+    }
+
+    function loadSessionStats() {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY.SESSION);
+            if (saved) {
+                const stats = JSON.parse(saved);
+                // 如果会话超过2小时，重置统计
+                if (Date.now() - stats.startTime > 2 * 60 * 60 * 1000) {
+                    return { startTime: Date.now(), itemsCompleted: 0 };
+                }
+                return stats;
+            }
+        } catch (e) {}
+        return { startTime: Date.now(), itemsCompleted: 0 };
+    }
+
+    function saveSessionStats() {
+        localStorage.setItem(STORAGE_KEY.SESSION, JSON.stringify(sessionStats));
+    }
+
+    // ==================== 日志 ====================
     const Log = {
-        debug: (msg) => settings.debugMode && console.log(`[刷课脚本] [DEBUG] ${msg}`),
         info: (msg) => { console.log(`[刷课脚本] ${msg}`); updateStatus(msg, 'info'); },
         success: (msg) => { console.log(`[刷课脚本] ✓ ${msg}`); updateStatus(msg, 'success'); },
-        warn: (msg) => { console.warn(`[刷课脚本] ⚠ ${msg}`); updateStatus(msg, 'warning'); },
-        error: (msg) => { console.error(`[刷课脚本] ✗ ${msg}`); updateStatus(msg, 'error'); }
+        warn: (msg) => { console.warn(`[刷课脚本] ⚠ ${msg}`); updateStatus(msg, 'warning'); }
+    };
+
+    // ==================== 防检测 ====================
+    const AntiDetection = {
+        intervals: [],
+        start() {
+            if (!settings.antiDetection) return;
+            this.intervals.push(setInterval(() => {
+                if (Math.random() > 0.7 && scriptEnabled) {
+                    const scroll = Math.random() * 100 - 50;
+                    window.scrollBy(0, scroll);
+                    setTimeout(() => window.scrollBy(0, -scroll), 1000 + Math.random() * 2000);
+                }
+            }, 20000 + Math.random() * 30000));
+        },
+        stop() {
+            this.intervals.forEach(clearInterval);
+            this.intervals = [];
+        }
+    };
+
+    // ==================== 进度统计 ====================
+    const Progress = {
+        getStats() {
+            const sidebar = Sidebar.find();
+            let items = [];
+            let currentIndex = -1;
+            
+            if (sidebar) {
+                items = Sidebar.getItems(sidebar);
+                currentIndex = Sidebar.findCurrentIndex(items);
+            }
+            
+            if (items.length === 0) {
+                items = Item.getAll();
+            }
+            
+            const current = currentIndex >= 0 ? currentIndex + 1 : 0;
+            return {
+                total: items.length,
+                current: current,
+                percentage: items.length > 0 ? Math.round((current / items.length) * 100) : 0,
+                sessionTime: Date.now() - sessionStats.startTime,
+                itemsCompleted: sessionStats.itemsCompleted
+            };
+        },
+        
+        updateDisplay() {
+            const stats = this.getStats();
+            const el = document.getElementById('ouchn-brusher-progress');
+            if (el) {
+                const isComplete = stats.current >= stats.total && stats.total > 0;
+                el.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                        <div style="display: flex; align-items: baseline; gap: 4px;">
+                            <span style="font-size: 24px; font-weight: 700; color: #667eea;">${stats.current}</span>
+                            <span style="font-size: 14px; color: #999;">/ ${stats.total}</span>
+                        </div>
+                        <div style="background: ${isComplete ? 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'}; color: white; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;">
+                            ${isComplete ? '🎉 已完成' : stats.percentage + '%'}
+                        </div>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.08); height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 10px;">
+                        <div style="background: ${isComplete ? 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'}; height: 100%; width: ${stats.percentage}%; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 3px;"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.06);">
+                        <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #666;">
+                            <span>📚</span>
+                            <span>本次 <strong style="color: #667eea;">${stats.itemsCompleted}</strong> 个</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #666;">
+                            <span>⏱️</span>
+                            <span>${formatTime(stats.sessionTime)}</span>
+                        </div>
+                    </div>
+                `;
+            }
+        }
     };
 
     // ==================== 视频管理 ====================
@@ -87,23 +180,17 @@
             let video = document.querySelector('video');
             if (video) return video;
             
-            const iframes = document.querySelectorAll('iframe');
-            for (const iframe of iframes) {
+            document.querySelectorAll('iframe').forEach(iframe => {
                 try {
                     const doc = iframe.contentDocument || iframe.contentWindow?.document;
-                    if (doc) {
-                        video = doc.querySelector('video');
-                        if (video) return video;
-                    }
-                } catch (e) {
-                    Log.debug('无法访问iframe内容');
-                }
-            }
-            return null;
+                    if (doc && !video) video = doc.querySelector('video');
+                } catch (e) {}
+            });
+            return video;
         },
 
-        async play(video, maxAttempts = 3) {
-            for (let i = 0; i < maxAttempts; i++) {
+        async play(video) {
+            for (let i = 0; i < 3; i++) {
                 try {
                     if (video.paused) {
                         video.muted = true;
@@ -113,7 +200,6 @@
                     }
                     return true;
                 } catch (err) {
-                    Log.warn(`播放尝试 ${i + 1}/${maxAttempts} 失败`);
                     await sleep(1000);
                 }
             }
@@ -123,202 +209,103 @@
         setupAutoAdvance(video, onComplete) {
             const handleEnded = () => {
                 Log.success('视频播放完成');
+                sessionStats.itemsCompleted++;
+                saveSessionStats();
+                Progress.updateDisplay();
                 setTimeout(onComplete, 2000);
             };
 
             video.addEventListener('ended', handleEnded);
 
-            const checkInterval = setInterval(() => {
-                if (!video || video.ended) {
-                    clearInterval(checkInterval);
-                    return;
-                }
-                if (video.paused) {
+            setInterval(() => {
+                if (video && !video.ended && video.paused) {
                     this.play(video).catch(() => {});
                 }
             }, settings.videoCheckInterval);
 
-            if (settings.enableSoundOnInteraction) {
-                const enableSound = () => {
-                    if (video.muted) {
-                        video.muted = false;
-                        Log.info('已恢复声音');
-                    }
-                    document.removeEventListener('click', enableSound);
-                    document.removeEventListener('keydown', enableSound);
-                };
-                document.addEventListener('click', enableSound);
-                document.addEventListener('keydown', enableSound);
-            }
+            const enableSound = () => {
+                if (video.muted) video.muted = false;
+                document.removeEventListener('click', enableSound);
+            };
+            document.addEventListener('click', enableSound);
         }
     };
 
-    // ==================== 学习项目管理 ====================
+    // ==================== 学习项目 ====================
     const Item = {
-        isCompleted(el) {
-            const completion = el.querySelector('.completion-icon, .completionstate, .status, .completion-complete, .icon-check');
-            if (completion) {
-                const cls = completion.className || '';
-                const txt = completion.textContent || '';
-                return cls.includes('completed') || cls.includes('complete') || txt.includes('已完成') || txt.includes('完成');
-            }
-            return el.classList.contains('completed');
-        },
-
-        needsManualAction(el) {
-            const cls = el.className || '';
-            const href = el.querySelector('a')?.href || '';
-            return MANUAL_ACTION_TYPES.some(type => cls.includes(type) || href.includes(`/mod/${type}/`));
-        },
-
         getAll() {
             const selectors = [
                 '.course-content .activity',
-                '.course-content .resource',
-                '.topics .activity',
-                '.section .activityinstance',
-                '.newgk-coursecontent .activity'
+                '.section .activity',
+                '#region-main .activity'
             ];
             for (const sel of selectors) {
                 const items = document.querySelectorAll(sel);
                 if (items.length > 0) return Array.from(items);
             }
             return [];
-        },
-
-        findNext(startIndex = -1) {
-            const items = this.getAll();
-            for (let i = startIndex + 1; i < items.length; i++) {
-                const item = items[i];
-                if (!this.isCompleted(item) && !this.needsManualAction(item)) {
-                    const link = item.querySelector('a');
-                    if (link) return { item, index: i, url: link.href };
-                }
-            }
-            return null;
         }
     };
 
-    // ==================== 侧边栏导航管理 ====================
+    // ==================== 侧边栏 ====================
     const Sidebar = {
         find() {
             return document.querySelector('#nav-drawer, .sidebar, .nav-sidebar');
         },
 
         getItems(sidebar) {
-            const sidebarStructure = [];
-            const seenUrls = new Set();
-            const sections = sidebar.querySelectorAll('.section');
+            const items = [];
+            const seen = new Set();
             
-            sections.forEach((section) => {
-                const activities = section.querySelectorAll('.activity, .resource, .modtype_resource, .modtype_url, .modtype_video, .modtype_quiz');
-                const sectionItems = [];
-                
-                activities.forEach((activity) => {
-                    const link = activity.querySelector('a');
-                    if (link && link.href.includes('/mod/')) {
-                        if (!seenUrls.has(link.href)) {
-                            seenUrls.add(link.href);
-                            sectionItems.push(link);
-                        }
-                    }
-                });
-                
-                if (sectionItems.length > 0) {
-                    sidebarStructure.push(sectionItems);
+            sidebar.querySelectorAll('.section .activity, .section .resource').forEach(activity => {
+                const link = activity.querySelector('a');
+                if (link && link.href.includes('/mod/') && !seen.has(link.href)) {
+                    seen.add(link.href);
+                    items.push(link);
                 }
             });
-            
-            let items = sidebarStructure.flat();
-            
-            if (items.length === 0) {
-                const allLinks = sidebar.querySelectorAll('a');
-                for (const link of allLinks) {
-                    const href = link.href;
-                    if (href.includes('/mod/') && !seenUrls.has(href)) {
-                        seenUrls.add(href);
-                        items.push(link);
-                    }
-                }
-            }
             
             return items;
         },
 
         findCurrentIndex(items) {
             const currentUrl = window.location.href;
-            const currentUrlPath = window.location.pathname;
-            const currentUrlId = currentUrl.split('id=')[1]?.split('&')[0];
+            const currentId = currentUrl.split('id=')[1]?.split('&')[0];
             
             for (let i = 0; i < items.length; i++) {
                 if (currentUrl === items[i].href) return i;
+                const itemId = items[i].href.split('id=')[1]?.split('&')[0];
+                if (currentId && currentId === itemId) return i;
             }
-            
-            if (currentUrlId) {
-                for (let i = 0; i < items.length; i++) {
-                    const itemUrl = items[i].href;
-                    const itemPath = new URL(itemUrl).pathname;
-                    if (currentUrlPath === itemPath) return i;
-                }
-            }
-            
-            if (currentUrlId) {
-                for (let i = 0; i < items.length; i++) {
-                    const itemUrl = items[i].href;
-                    const itemId = itemUrl.split('id=')[1]?.split('&')[0];
-                    if (currentUrlId === itemId) return i;
-                }
-            }
-            
-            for (let i = 0; i < items.length; i++) {
-                const itemUrl = items[i].href;
-                if (currentUrl.includes(itemUrl.split('?')[0].split('/').pop())) return i;
-            }
-            
             return -1;
         }
     };
 
-    // ==================== 导航管理 ====================
+    // ==================== 导航 ====================
     async function goToNextItem() {
         Log.info('查找下一个学习项目...');
         
         const sidebar = Sidebar.find();
         if (sidebar) {
-            const sidebarItems = Sidebar.getItems(sidebar);
-            if (sidebarItems.length > 0) {
-                const currentIndex = Sidebar.findCurrentIndex(sidebarItems);
-                
-                if (currentIndex >= 0 && currentIndex === sidebarItems.length - 1) {
-                    Log.success('已完成最后一个项目！');
-                    pauseScript();
-                    return;
-                }
-                
-                if (currentIndex >= 0 && currentIndex < sidebarItems.length - 1) {
-                    const nextUrl = sidebarItems[currentIndex + 1].href;
-                    Log.info(`跳转到下一个项目（侧边栏 ${currentIndex + 1}/${sidebarItems.length}）`);
-                    await sleep(500);
-                    window.location.href = nextUrl;
-                    return;
-                }
+            const items = Sidebar.getItems(sidebar);
+            const currentIndex = Sidebar.findCurrentIndex(items);
+            
+            if (currentIndex >= 0 && currentIndex < items.length - 1) {
+                Log.info(`跳转到下一个项目（${currentIndex + 2}/${items.length}）`);
+                await sleep(500);
+                window.location.href = items[currentIndex + 1].href;
+                return;
             }
         }
         
-        const next = Item.findNext();
-        if (next) {
-            Log.info(`跳转到下一个项目（索引 ${next.index}）`);
-            await sleep(500);
-            window.location.href = next.url;
-        } else {
-            Log.success('所有学习项目已完成！');
-            pauseScript();
-        }
+        Log.success('所有项目已完成！');
+        pauseScript();
     }
 
     // ==================== 页面处理 ====================
     async function processLearningItem() {
         Log.info('处理学习项目页面...');
+        AntiDetection.start();
 
         const video = Video.find();
         if (video) {
@@ -332,33 +319,36 @@
             return;
         }
 
-        const contentSelectors = '.resourcecontent, .mod-resource-content, .forum, .mod-forum-content, .page-content, .mod-page-content, .content, #page-content, .main-content, .region-content, .course-content, .forum-content, .discussion-content';
-        const hasContent = document.querySelector(contentSelectors);
+        sessionStats.itemsCompleted++;
+        saveSessionStats();
+        Progress.updateDisplay();
         
-        const waitTime = hasContent ? settings.pageWaitTime : 3000;
-        Log.info(`${hasContent ? '文档' : '其他'}内容，等待 ${waitTime/1000} 秒后继续`);
-        
-        setTimeout(goToNextItem, waitTime);
+        setTimeout(goToNextItem, settings.pageWaitTime);
     }
 
     async function processCoursePage() {
         Log.info('处理课程页面...');
+        Progress.updateDisplay();
         
-        const next = Item.findNext();
-        if (next) {
-            Log.info('找到未完成项目，跳转...');
-            await sleep(500);
-            window.location.href = next.url;
-        } else {
-            Log.success('所有项目已完成！');
-            pauseScript();
+        const items = Item.getAll();
+        for (const item of items) {
+            const link = item.querySelector('a');
+            if (link) {
+                await sleep(500);
+                window.location.href = link.href;
+                return;
+            }
         }
+        
+        Log.success('所有项目已完成！');
+        pauseScript();
     }
 
-    // ==================== 脚本控制 ====================
+    // ==================== 控制 ====================
     function pauseScript() {
         scriptEnabled = false;
         localStorage.setItem(STORAGE_KEY.ENABLED, 'false');
+        AntiDetection.stop();
         Log.success('脚本已暂停');
         updateButtonStates();
     }
@@ -372,242 +362,269 @@
     }
 
     function updateButtonStates() {
+        const toggle = document.getElementById('ouchn-brusher-toggle');
         const startBtn = document.getElementById('ouchn-brusher-start');
         const stopBtn = document.getElementById('ouchn-brusher-stop');
-        const toggle = document.getElementById('ouchn-brusher-toggle');
         
         if (toggle) toggle.checked = scriptEnabled;
-        
-        if (startBtn && stopBtn) {
-            startBtn.disabled = scriptEnabled;
-            startBtn.style.opacity = scriptEnabled ? '0.5' : '1';
-            startBtn.style.cursor = scriptEnabled ? 'not-allowed' : 'pointer';
-            stopBtn.disabled = !scriptEnabled;
-            stopBtn.style.opacity = !scriptEnabled ? '0.5' : '1';
-            stopBtn.style.cursor = !scriptEnabled ? 'not-allowed' : 'pointer';
-        }
+        if (startBtn) startBtn.disabled = scriptEnabled;
+        if (stopBtn) stopBtn.disabled = !scriptEnabled;
     }
 
-    // ==================== UI 状态更新 ====================
-    function updateStatus(msg, type = 'info') {
+    function updateStatus(msg, type) {
         const status = document.getElementById('ouchn-brusher-status');
         if (!status) return;
-        
         status.textContent = msg;
-        const styles = {
+        const colors = {
             success: { bg: '#e8f5e8', color: '#2e7d32' },
-            error: { bg: '#ffebee', color: '#c62828' },
             warning: { bg: '#fff3e0', color: '#ef6c00' },
             info: { bg: '#f5f5f5', color: '#666' }
         };
-        const s = styles[type] || styles.info;
-        status.style.background = s.bg;
-        status.style.color = s.color;
+        const c = colors[type] || colors.info;
+        status.style.background = c.bg;
+        status.style.color = c.color;
     }
 
-    // ==================== 物理磁吸系统 ====================
-    const Snap = {
-        apply(containerEl) {
-            const windowWidth = document.documentElement.clientWidth;
-            const windowHeight = document.documentElement.clientHeight;
-            const containerWidth = containerEl.offsetWidth;
-            const containerHeight = containerEl.offsetHeight;
+    function setSpeedMode(mode) {
+        const config = SPEED_MODES[mode];
+        if (!config) return;
+        settings.speedMode = mode;
+        settings.videoCheckInterval = config.videoCheck;
+        settings.pageWaitTime = config.pageWait;
+        saveSettings(settings);
+        
+        document.querySelectorAll('.speed-btn').forEach(btn => {
+            const active = btn.dataset.mode === mode;
+            btn.style.background = active ? '#4CAF50' : '#fff';
+            btn.style.color = active ? '#fff' : '#333';
+        });
+        
+        Log.success(`已切换到${config.name}模式`);
+    }
 
-            // 从 transform 中获取当前像素位置
-            const transform = containerEl.style.transform;
+    // ==================== 位置管理 ====================
+    const Position = {
+        save() {
+            const transform = container.style.transform;
             const match = transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/);
-            let currentX = match ? parseFloat(match[1]) : 0;
-            let currentY = match ? parseFloat(match[2]) : 0;
-
-            // 根据当前位置判断吸附到哪边
-            const centerX = windowWidth / 2;
-            let targetX;
+            if (!match) return;
             
-            if (currentX + containerWidth / 2 < centerX) {
-                // 当前在左半边，吸附到左边
-                targetX = 0;
-            } else {
-                // 当前在右半边，吸附到右边
-                targetX = windowWidth - containerWidth;
-            }
+            const x = parseFloat(match[1]);
+            const y = parseFloat(match[2]);
+            const windowWidth = document.documentElement.clientWidth;
+            const containerWidth = container.offsetWidth;
+            
+            let edge = 'none';
+            if (x < 10) edge = 'left';
+            else if (x > windowWidth - containerWidth - 10) edge = 'right';
+            
+            localStorage.setItem(STORAGE_KEY.POSITION, JSON.stringify({
+                edge,
+                y: (y / window.innerHeight) * 100
+            }));
+        },
 
-            // Y 方向保持在当前位置，但确保在视口内
-            const targetY = Math.max(0, Math.min(currentY, windowHeight - containerHeight));
+        load() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY.POSITION);
+                if (saved) {
+                    const pos = JSON.parse(saved);
+                    const windowWidth = document.documentElement.clientWidth;
+                    const containerWidth = 50;
+                    
+                    let x = windowWidth - 60;
+                    if (pos.edge === 'left') x = 0;
+                    else if (pos.edge === 'right') x = windowWidth - containerWidth;
+                    
+                    let y = 100;
+                    if (pos.y !== undefined) y = (pos.y / 100) * window.innerHeight;
+                    
+                    return { x, y };
+                }
+            } catch (e) {}
+            return { x: window.innerWidth - 60, y: 100 };
+        },
 
-            containerEl.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-            containerEl.style.transform = `translate(${targetX}px, ${targetY}px)`;
-            containerEl.style.opacity = '1';
-
-            setTimeout(() => {
-                savePositionPercentage(containerEl);
-            }, 300);
+        snap() {
+            const windowWidth = document.documentElement.clientWidth;
+            const containerWidth = container.offsetWidth;
+            
+            const transform = container.style.transform;
+            const match = transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/);
+            if (!match) return;
+            
+            let currentX = parseFloat(match[1]);
+            let currentY = parseFloat(match[2]);
+            
+            const targetX = currentX + containerWidth / 2 < windowWidth / 2 ? 0 : windowWidth - containerWidth;
+            const targetY = Math.max(0, Math.min(currentY, window.innerHeight - container.offsetHeight));
+            
+            container.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+            container.style.transform = `translate(${targetX}px, ${targetY}px)`;
+            
+            setTimeout(() => this.save(), 300);
         }
     };
 
-    // ==================== 位置管理（边缘状态 + 百分比定位） ====================
-    function savePositionPercentage(containerEl) {
-        const windowWidth = document.documentElement.clientWidth;
-        const windowHeight = document.documentElement.clientHeight;
-        const containerWidth = containerEl.offsetWidth;
-        const containerHeight = containerEl.offsetHeight;
-        
-        // 从 transform 获取当前位置
-        const transform = containerEl.style.transform;
-        const match = transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/);
-        const currentX = match ? parseFloat(match[1]) : 0;
-        const currentY = match ? parseFloat(match[2]) : 0;
-        
-        // 判断是否在边缘位置
-        let edge = 'none';
-        if (currentX < 10) {
-            edge = 'left';
-        } else if (currentX > windowWidth - containerWidth - 10) {
-            edge = 'right';
-        }
-        
-        // 保存边缘状态和百分比位置
-        const percentY = (currentY / windowHeight) * 100;
-        localStorage.setItem(STORAGE_KEY.POSITION, JSON.stringify({ 
-            edge: edge, 
-            y: percentY 
-        }));
-    }
-
-    function loadPositionPercentage() {
-        try {
-            const saved = localStorage.getItem(STORAGE_KEY.POSITION);
-            if (saved) {
-                const pos = JSON.parse(saved);
-                const windowWidth = document.documentElement.clientWidth;
-                const windowHeight = document.documentElement.clientHeight;
-                const containerWidth = container.offsetWidth;
-                
-                let x = windowWidth - 60; // 默认右侧
-                
-                // 如果保存了边缘状态，直接定位到边缘
-                if (pos.edge === 'left') {
-                    x = 0;
-                } else if (pos.edge === 'right') {
-                    x = windowWidth - containerWidth;
-                } else if (pos.x !== undefined && pos.x >= 0 && pos.x <= 100) {
-                    // 兼容旧版本的百分比存储
-                    x = (pos.x / 100) * windowWidth;
-                }
-                
-                // 计算Y位置
-                let y = 100; // 默认位置
-                if (pos.y !== undefined && pos.y >= 0 && pos.y <= 100) {
-                    y = (pos.y / 100) * windowHeight;
-                }
-                
-                return { x, y };
-            }
-        } catch (e) {
-            Log.debug('加载位置失败，使用默认位置');
-        }
-        return null;
-    }
-
-    // ==================== 控制面板 ====================
+    // ==================== 面板 ====================
     function createControlPanel() {
         if (document.getElementById('ouchn-brusher-container')) return;
 
         scriptEnabled = localStorage.getItem(STORAGE_KEY.ENABLED) !== 'false';
 
+        const pos = Position.load();
+        
         container = document.createElement('div');
         container.id = 'ouchn-brusher-container';
-        
-        const savedPos = loadPositionPercentage();
-        let initialX = savedPos?.x || (window.innerWidth - 60);
-        let initialY = savedPos?.y || 100;
-        
         container.style.cssText = `
-            position: fixed; 
-            left: 0; 
-            top: 0;
-            transform: translate(${initialX}px, ${initialY}px);
-            z-index: 999999;
-            font-family: Arial, sans-serif; 
+            position: fixed; left: 0; top: 0;
+            transform: translate(${pos.x}px, ${pos.y}px);
+            z-index: 999999; font-family: Arial, sans-serif;
             transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.3s ease;
-            transform-origin: top left;
-            opacity: 1;
-            user-select: none;
-            -webkit-user-select: none;
-            touch-action: none;
-            will-change: transform;
-            pointer-events: auto;
+            user-select: none; touch-action: none; will-change: transform;
         `;
 
+        // 悬浮按钮 - 现代渐变设计
         button = document.createElement('div');
-        button.id = 'ouchn-brusher-button';
         button.style.cssText = `
-            width: 50px; height: 50px; background: #4CAF50; border-radius: 50%;
+            width: 56px; height: 56px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
             display: flex; align-items: center; justify-content: center;
-            cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            color: white; font-size: 24px; position: relative;
-            user-select: none;
-            -webkit-user-select: none;
-            touch-action: none;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset;
+            color: white; font-size: 26px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
         `;
-        button.textContent = '📚';
+        button.innerHTML = '🎓';
+        
+        // 按钮悬停效果
+        button.addEventListener('mouseenter', () => {
+            button.style.transform = 'scale(1.05)';
+            button.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.5), 0 0 0 1px rgba(255,255,255,0.2) inset';
+        });
+        button.addEventListener('mouseleave', () => {
+            button.style.transform = 'scale(1)';
+            button.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset';
+        });
 
+        // 面板 - 现代卡片设计
         panel = document.createElement('div');
         panel.id = 'ouchn-brusher-panel';
         panel.style.cssText = `
-            position: absolute; top: 0; right: 60px; width: 280px;
-            background: #fff; border: 1px solid #e0e0e0; border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1); font-size: 14px;
-            display: none; padding: 0;
+            position: absolute; top: 0; right: 68px; width: 300px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 0 0 1px rgba(255,255,255,0.5) inset;
+            font-size: 14px; display: none;
+            overflow: hidden;
         `;
 
-        const header = document.createElement('div');
-        header.style.cssText = `
-            padding: 12px; background: #4CAF50; color: white; 
-            border-radius: 8px 8px 0 0; font-weight: bold; 
-            display: flex; justify-content: space-between; align-items: center;
-            cursor: move;
-        `;
-        header.innerHTML = `
-            <span>刷课脚本控制 v2.2</span>
-            <button id="ouchn-brusher-close" style="
-                background: none; border: none; color: white; 
-                cursor: pointer; font-size: 18px; padding: 0;
-                width: 20px; height: 20px; display: flex;
-                align-items: center; justify-content: center;
-            ">×</button>
-        `;
-
-        const content = document.createElement('div');
-        content.style.cssText = 'padding: 12px;';
-        content.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <span>启用脚本</span>
-                <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
-                    <input type="checkbox" id="ouchn-brusher-toggle" ${scriptEnabled ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
-                    <span class="slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #f44336; transition: 0.4s; border-radius: 24px;"></span>
-                </label>
+        panel.innerHTML = `
+            <div style="padding: 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
+                <span style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 18px;">🎓</span>
+                    <span>刷课助手 v1.4</span>
+                </span>
+                <button id="ouchn-brusher-close" style="background: rgba(255,255,255,0.2); border: none; color: white; cursor: pointer; font-size: 16px; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">✕</button>
             </div>
-            <div id="ouchn-brusher-status" style="padding: 8px; background: #f5f5f5; border-radius: 4px; margin-bottom: 12px; font-size: 12px; color: #666;">
-                ${scriptEnabled ? '脚本已启用' : '脚本已禁用'}
-            </div>
-            <div style="display: flex; gap: 8px;">
-                <button id="ouchn-brusher-start" style="flex: 1; padding: 8px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">开始</button>
-                <button id="ouchn-brusher-stop" style="flex: 1; padding: 8px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">停止</button>
+            <div style="padding: 16px;">
+                <!-- 进度卡片 -->
+                <div id="ouchn-brusher-progress" style="margin-bottom: 16px; padding: 14px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 12px; border: 1px solid rgba(0,0,0,0.05);">
+                    <div style="text-align: center; color: #888; font-size: 13px;">正在加载进度...</div>
+                </div>
+                
+                <!-- 速度模式 - 分段控制器 -->
+                <div style="margin-bottom: 16px;">
+                    <div style="font-size: 12px; color: #666; margin-bottom: 8px; font-weight: 500;">⚡ 速度模式</div>
+                    <div style="display: flex; background: #f0f0f0; border-radius: 10px; padding: 4px; gap: 4px;">
+                        <button class="speed-btn" data-mode="normal" style="flex: 1; padding: 8px 4px; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; background: ${settings.speedMode === 'normal' ? '#fff' : 'transparent'}; color: ${settings.speedMode === 'normal' ? '#667eea' : '#666'}; box-shadow: ${settings.speedMode === 'normal' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'};">🐢 正常</button>
+                        <button class="speed-btn" data-mode="fast" style="flex: 1; padding: 8px 4px; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; background: ${settings.speedMode === 'fast' ? '#fff' : 'transparent'}; color: ${settings.speedMode === 'fast' ? '#667eea' : '#666'}; box-shadow: ${settings.speedMode === 'fast' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'};">🚀 快速</button>
+                        <button class="speed-btn" data-mode="stealth" style="flex: 1; padding: 8px 4px; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; background: ${settings.speedMode === 'stealth' ? '#fff' : 'transparent'}; color: ${settings.speedMode === 'stealth' ? '#667eea' : '#666'}; box-shadow: ${settings.speedMode === 'stealth' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'};">🥷 低调</button>
+                    </div>
+                </div>
+                
+                <!-- 开关组 -->
+                <div style="background: #f8f9fa; border-radius: 12px; padding: 12px; margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span style="font-size: 13px; color: #444; display: flex; align-items: center; gap: 6px;">
+                            <span style="font-size: 14px;">▶️</span> 启用脚本
+                        </span>
+                        <label class="switch" style="position: relative; display: inline-block; width: 52px; height: 28px;">
+                            <input type="checkbox" id="ouchn-brusher-toggle" ${scriptEnabled ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
+                            <span class="slider ${scriptEnabled ? 'active' : ''}" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #e0e0e0; transition: all 0.3s; border-radius: 28px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);"></span>
+                        </label>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 13px; color: #444; display: flex; align-items: center; gap: 6px;">
+                            <span style="font-size: 14px;">🛡️</span> 防检测模式
+                        </span>
+                        <label class="switch" style="position: relative; display: inline-block; width: 52px; height: 28px;">
+                            <input type="checkbox" id="ouchn-anti-detection" ${settings.antiDetection ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
+                            <span class="slider ${settings.antiDetection ? 'active' : ''}" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #e0e0e0; transition: all 0.3s; border-radius: 28px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- 状态 -->
+                <div id="ouchn-brusher-status" style="padding: 10px 12px; background: ${scriptEnabled ? 'rgba(102, 126, 234, 0.1)' : 'rgba(150, 150, 150, 0.1)'}; border-radius: 10px; margin-bottom: 16px; font-size: 12px; color: ${scriptEnabled ? '#667eea' : '#666'}; font-weight: 500; text-align: center; border: 1px solid ${scriptEnabled ? 'rgba(102, 126, 234, 0.2)' : 'rgba(150, 150, 150, 0.2)'};">
+                    ${scriptEnabled ? '✅ 脚本运行中' : '⏸️ 脚本已暂停'}
+                </div>
+                
+                <!-- 控制按钮 -->
+                <div style="display: flex; gap: 10px;">
+                    <button id="ouchn-brusher-start" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s; opacity: ${scriptEnabled ? '0.5' : '1'}; pointer-events: ${scriptEnabled ? 'none' : 'auto'}; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);" onmouseover="if(!this.disabled) this.style.transform='translateY(-2px)'" onmouseout="if(!this.disabled) this.style.transform='translateY(0)'" ${scriptEnabled ? 'disabled' : ''}>▶️ 开始</button>
+                    <button id="ouchn-brusher-stop" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s; opacity: ${!scriptEnabled ? '0.5' : '1'}; pointer-events: ${!scriptEnabled ? 'none' : 'auto'}; box-shadow: 0 4px 12px rgba(245, 87, 108, 0.3);" onmouseover="if(!this.disabled) this.style.transform='translateY(-2px)'" onmouseout="if(!this.disabled) this.style.transform='translateY(0)'" ${!scriptEnabled ? 'disabled' : ''}>⏹️ 停止</button>
+                </div>
             </div>
         `;
 
-        panel.appendChild(header);
-        panel.appendChild(content);
-
+        // 全局样式
         const style = document.createElement('style');
         style.textContent = `
-            .switch input:checked + .slider { background: #2196F3; }
-            .slider:before { 
-                position: absolute; content: ""; height: 18px; width: 18px; 
-                left: 3px; bottom: 3px; background: white; 
-                transition: 0.4s; border-radius: 50%; 
+            /* 开关 - 禁用状态（灰色） */
+            .slider { background: #e0e0e0 !important; }
+            
+            /* 开关 - 启用状态（主题紫色） */
+            .slider.active,
+            .switch input:checked + .slider { 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important; 
+                box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4), inset 0 1px 2px rgba(255,255,255,0.2) !important;
             }
-            .switch input:checked + .slider:before { transform: translateX(20px); }
+            
+            /* 开关圆点 */
+            .slider:before { 
+                content: ""; 
+                position: absolute; 
+                height: 22px; 
+                width: 22px; 
+                left: 3px; 
+                bottom: 3px; 
+                background: white; 
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+                border-radius: 50%; 
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }
+            
+            /* 启用时圆点位置 */
+            .slider.active:before,
+            .switch input:checked + .slider:before { 
+                transform: translateX(24px); 
+                box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            }
+            
+            /* 速度按钮悬停 */
+            .speed-btn:hover { background: rgba(102, 126, 234, 0.1) !important; }
+            
+            /* 开关悬停效果 */
+            .switch:hover .slider { 
+                filter: brightness(1.05);
+            }
         `;
         document.head.appendChild(style);
 
@@ -615,167 +632,112 @@
         container.appendChild(panel);
         document.body.appendChild(container);
 
+        // 事件绑定
         let isOpen = false;
-        let isActuallyDragging = false;
-        let startX, startY, startLeft, startTop;
-        let hideTimer = null;
-        let isDraggingFlag = false;
+        let isDragging = false;
 
         button.addEventListener('click', (e) => {
-            if (isDraggingFlag) {
-                isDraggingFlag = false;
-                return;
-            }
+            if (isDragging) { isDragging = false; return; }
             e.stopPropagation();
             
             const rect = container.getBoundingClientRect();
-            const windowWidth = document.documentElement.clientWidth;
-            const centerX = windowWidth / 2;
-            
-            if (rect.left < centerX) {
-                panel.style.left = '60px';
-                panel.style.right = 'auto';
-            } else {
-                panel.style.left = 'auto';
-                panel.style.right = '60px';
-            }
+            const centerX = window.innerWidth / 2;
+            panel.style.left = rect.left < centerX ? '60px' : 'auto';
+            panel.style.right = rect.left < centerX ? 'auto' : '60px';
             
             panel.style.display = isOpen ? 'none' : 'block';
             isOpen = !isOpen;
+            Progress.updateDisplay();
         });
 
-        document.getElementById('ouchn-brusher-close').onclick = (e) => {
-            e.stopPropagation();
+        document.getElementById('ouchn-brusher-close').onclick = () => {
             panel.style.display = 'none';
             isOpen = false;
         };
 
         document.getElementById('ouchn-brusher-toggle').onchange = function() {
-            if (this.checked) resumeScript();
-            else pauseScript();
+            const slider = this.parentElement.querySelector('.slider');
+            if (this.checked) {
+                slider.classList.add('active');
+                resumeScript();
+            } else {
+                slider.classList.remove('active');
+                pauseScript();
+            }
         };
 
-        document.getElementById('ouchn-brusher-start').onclick = () => resumeScript();
-        document.getElementById('ouchn-brusher-stop').onclick = () => pauseScript();
-
-        container.addEventListener('mouseenter', () => {
-            if (hideTimer) {
-                clearTimeout(hideTimer);
-                hideTimer = null;
+        document.getElementById('ouchn-anti-detection').onchange = function() {
+            const slider = this.parentElement.querySelector('.slider');
+            if (this.checked) {
+                slider.classList.add('active');
+            } else {
+                slider.classList.remove('active');
             }
-            container.style.transition = 'all 0.3s ease';
+            settings.antiDetection = this.checked;
+            saveSettings(settings);
+        };
+
+        document.getElementById('ouchn-brusher-start').onclick = resumeScript;
+        document.getElementById('ouchn-brusher-stop').onclick = pauseScript;
+
+        document.querySelectorAll('.speed-btn').forEach(btn => {
+            btn.onclick = () => setSpeedMode(btn.dataset.mode);
+        });
+
+        // 悬停效果
+        let hideTimer;
+        container.addEventListener('mouseenter', () => {
+            clearTimeout(hideTimer);
             container.style.opacity = '1';
         });
-
         container.addEventListener('mouseleave', () => {
-            hideTimer = setTimeout(() => {
-                container.style.transition = 'opacity 0.3s ease';
-                container.style.opacity = '0.6';
-            }, 500);
+            hideTimer = setTimeout(() => container.style.opacity = '0.6', 500);
         });
 
-        let dragContainerWidth = 0;
-        let dragContainerHeight = 0;
-        let dragWindowWidth = 0;
-        let dragWindowHeight = 0;
-        let dragStartX = 0;
-        let dragStartY = 0;
-        let dragOffsetX = 0; // 鼠标相对于容器左上角的偏移
-        let dragOffsetY = 0;
-        let dragListenersAdded = false;
+        // 拖拽
+        let startX, startY, offsetX, offsetY;
 
-        const doDrag = (e) => {
+        const onMove = (e) => {
             e.preventDefault();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
             
-            if (!isActuallyDragging) {
-                const distance = Math.sqrt(Math.pow(clientX - startX, 2) + Math.pow(clientY - startY, 2));
-                if (distance > 5) {
-                    isActuallyDragging = true;
-                    isDraggingFlag = true;
-                    dragContainerWidth = container.offsetWidth;
-                    dragContainerHeight = container.offsetHeight;
-                    dragWindowWidth = document.documentElement.clientWidth;
-                    dragWindowHeight = document.documentElement.clientHeight;
-                    document.body.style.cursor = 'grabbing';
-                    container.style.cursor = 'grabbing';
-                    button.style.cursor = 'grabbing';
-                } else {
-                    return;
-                }
+            if (!isDragging) {
+                const dist = Math.sqrt(Math.pow(clientX - startX, 2) + Math.pow(clientY - startY, 2));
+                if (dist > 5) isDragging = true;
+                else return;
             }
             
-            const newX = Math.max(0, Math.min(clientX - dragOffsetX, dragWindowWidth - dragContainerWidth));
-            const newY = Math.max(0, Math.min(clientY - dragOffsetY, dragWindowHeight - dragContainerHeight));
-            
+            const newX = Math.max(0, Math.min(clientX - offsetX, window.innerWidth - 50));
+            const newY = Math.max(0, Math.min(clientY - offsetY, window.innerHeight - 50));
             container.style.transform = `translate(${newX}px, ${newY}px)`;
         };
 
-        const endDragWithCleanup = (e) => {
-            document.body.style.cursor = '';
-            container.style.cursor = '';
-            button.style.cursor = 'pointer';
-            
-            if (isActuallyDragging) {
-                container.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-                Snap.apply(container);
-            }
-            isActuallyDragging = false;
-            
-            if (dragListenersAdded) {
-                document.removeEventListener('mousemove', doDrag);
-                document.removeEventListener('touchmove', doDrag);
-                document.removeEventListener('mouseup', endDragWithCleanup);
-                document.removeEventListener('touchend', endDragWithCleanup);
-                document.removeEventListener('mouseleave', endDragWithCleanup);
-                document.removeEventListener('touchcancel', endDragWithCleanup);
-                dragListenersAdded = false;
-            }
+        const onEnd = () => {
+            if (isDragging) Position.snap();
+            isDragging = false;
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onEnd);
         };
 
-        const startDragWithEvents = (e) => {
-            e.preventDefault();
-            isActuallyDragging = false;
-            isDraggingFlag = false;
-            
-            container.style.transition = 'none !important';
-            container.style.opacity = '1';
-            
-            document.body.style.cursor = 'grab';
-            container.style.cursor = 'grab';
-            button.style.cursor = 'grab';
-            
+        const onStart = (e) => {
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
             startX = clientX;
             startY = clientY;
             
-            // 计算鼠标相对于容器左上角的偏移
             const rect = container.getBoundingClientRect();
-            dragOffsetX = clientX - rect.left;
-            dragOffsetY = clientY - rect.top;
+            offsetX = clientX - rect.left;
+            offsetY = clientY - rect.top;
             
-            if (hideTimer) {
-                clearTimeout(hideTimer);
-                hideTimer = null;
-            }
+            container.style.transition = 'none';
+            clearTimeout(hideTimer);
             
-            if (!dragListenersAdded) {
-                document.addEventListener('mousemove', doDrag, { passive: false });
-                document.addEventListener('touchmove', doDrag, { passive: false });
-                document.addEventListener('mouseup', endDragWithCleanup);
-                document.addEventListener('touchend', endDragWithCleanup);
-                document.addEventListener('mouseleave', endDragWithCleanup);
-                document.addEventListener('touchcancel', endDragWithCleanup);
-                dragListenersAdded = true;
-            }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onEnd);
         };
 
-        button.addEventListener('mousedown', startDragWithEvents);
-        button.addEventListener('touchstart', startDragWithEvents, { passive: true });
-        header.addEventListener('mousedown', startDragWithEvents);
-        header.addEventListener('touchstart', startDragWithEvents, { passive: true });
+        button.addEventListener('mousedown', onStart);
 
         document.addEventListener('click', (e) => {
             if (!container.contains(e.target) && isOpen) {
@@ -783,21 +745,13 @@
                 isOpen = false;
             }
         });
-
-        window.addEventListener('resize', () => {
-            const savedPos = loadPositionPercentage();
-            if (savedPos) {
-                container.style.transition = 'none';
-                container.style.transform = `translate(${savedPos.x}px, ${savedPos.y}px)`;
-            }
-        });
-
-        updateButtonStates();
     }
 
     // ==================== 初始化 ====================
     async function init() {
         createControlPanel();
+        
+        setTimeout(() => Progress.updateDisplay(), 100);
 
         if (!scriptEnabled) {
             Log.warn('脚本已禁用');
@@ -810,13 +764,12 @@
         Log.success('脚本已启动');
 
         await sleep(100);
-        Snap.apply(container);
-
+        Position.snap();
         await sleep(900);
 
         const url = window.location.href;
         
-        if (isCoursePage(url)) {
+        if (url.includes('/course/view.php')) {
             await processCoursePage();
         } else if (url.includes('/mod/')) {
             await processLearningItem();
@@ -828,17 +781,21 @@
     window.addEventListener('load', () => !initialized && setTimeout(init, 500));
     window.addEventListener('hashchange', () => { initialized = false; setTimeout(init, 1000); });
     
-    // 视口变化时重新计算位置
-    let resizeTimer = null;
+    let resizeTimer;
     window.addEventListener('resize', () => {
-        if (resizeTimer) clearTimeout(resizeTimer);
+        clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => {
-            const savedPos = loadPositionPercentage();
-            if (savedPos) {
-                container.style.transition = 'none';
-                container.style.transform = `translate(${savedPos.x}px, ${savedPos.y}px)`;
-            }
+            const pos = Position.load();
+            container.style.transition = 'none';
+            container.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
         }, 100);
     });
+
+    // 定期更新进度
+    setInterval(() => {
+        if (document.getElementById('ouchn-brusher-progress')) {
+            Progress.updateDisplay();
+        }
+    }, 5000);
 
 })();
