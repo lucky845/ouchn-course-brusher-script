@@ -4,7 +4,7 @@
 // @downloadURL  https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher.user.js
 // @updateURL    https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher.user.js
 // @version      1.4.0
-// @description  自动识别并处理Moodle平台的学习项目，包括视频自动播放、文档自动处理等。如果有更好的实现方式，欢迎参与贡献。（个人自用）
+// @description  这是一个自动刷完学习项目的脚本，适用于国家开放大学实验学院的 Moodle 平台。（个人自用）
 // @author       lucky845
 // @match        https://moodle.syxy.ouchn.cn/mod/*
 // @grant        none
@@ -75,7 +75,6 @@
             const saved = localStorage.getItem(STORAGE_KEY.SESSION);
             if (saved) {
                 const stats = JSON.parse(saved);
-                // 如果会话超过2小时，重置统计
                 if (Date.now() - stats.startTime > 2 * 60 * 60 * 1000) {
                     return { startTime: Date.now(), itemsCompleted: 0 };
                 }
@@ -484,7 +483,6 @@
             user-select: none; touch-action: none; will-change: transform;
         `;
 
-        // 悬浮按钮 - 现代渐变设计
         button = document.createElement('div');
         button.style.cssText = `
             width: 56px; height: 56px;
@@ -500,7 +498,6 @@
         `;
         button.innerHTML = '🎓';
         
-        // 按钮悬停效果
         button.addEventListener('mouseenter', () => {
             button.style.transform = 'scale(1.05)';
             button.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.5), 0 0 0 1px rgba(255,255,255,0.2) inset';
@@ -510,7 +507,6 @@
             button.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset';
         });
 
-        // 面板 - 现代卡片设计
         panel = document.createElement('div');
         panel.id = 'ouchn-brusher-panel';
         panel.style.cssText = `
@@ -533,12 +529,10 @@
                 <button id="ouchn-brusher-close" style="background: rgba(255,255,255,0.2); border: none; color: white; cursor: pointer; font-size: 16px; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">✕</button>
             </div>
             <div style="padding: 16px;">
-                <!-- 进度卡片 -->
                 <div id="ouchn-brusher-progress" style="margin-bottom: 16px; padding: 14px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 12px; border: 1px solid rgba(0,0,0,0.05);">
                     <div style="text-align: center; color: #888; font-size: 13px;">正在加载进度...</div>
                 </div>
                 
-                <!-- 速度模式 - 分段控制器 -->
                 <div style="margin-bottom: 16px;">
                     <div style="font-size: 12px; color: #666; margin-bottom: 8px; font-weight: 500;">⚡ 速度模式</div>
                     <div style="display: flex; background: #f0f0f0; border-radius: 10px; padding: 4px; gap: 4px;">
@@ -548,7 +542,6 @@
                     </div>
                 </div>
                 
-                <!-- 开关组 -->
                 <div style="background: #f8f9fa; border-radius: 12px; padding: 12px; margin-bottom: 16px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                         <span style="font-size: 13px; color: #444; display: flex; align-items: center; gap: 6px;">
@@ -571,12 +564,10 @@
                     </div>
                 </div>
                 
-                <!-- 状态 -->
                 <div id="ouchn-brusher-status" style="padding: 10px 12px; background: ${scriptEnabled ? 'rgba(102, 126, 234, 0.1)' : 'rgba(150, 150, 150, 0.1)'}; border-radius: 10px; margin-bottom: 16px; font-size: 12px; color: ${scriptEnabled ? '#667eea' : '#666'}; font-weight: 500; text-align: center; border: 1px solid ${scriptEnabled ? 'rgba(102, 126, 234, 0.2)' : 'rgba(150, 150, 150, 0.2)'};">
                     ${scriptEnabled ? '✅ 脚本运行中' : '⏸️ 脚本已暂停'}
                 </div>
                 
-                <!-- 控制按钮 -->
                 <div style="display: flex; gap: 10px;">
                     <button id="ouchn-brusher-start" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s; opacity: ${scriptEnabled ? '0.5' : '1'}; pointer-events: ${scriptEnabled ? 'none' : 'auto'}; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);" onmouseover="if(!this.disabled) this.style.transform='translateY(-2px)'" onmouseout="if(!this.disabled) this.style.transform='translateY(0)'" ${scriptEnabled ? 'disabled' : ''}>▶️ 开始</button>
                     <button id="ouchn-brusher-stop" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s; opacity: ${!scriptEnabled ? '0.5' : '1'}; pointer-events: ${!scriptEnabled ? 'none' : 'auto'}; box-shadow: 0 4px 12px rgba(245, 87, 108, 0.3);" onmouseover="if(!this.disabled) this.style.transform='translateY(-2px)'" onmouseout="if(!this.disabled) this.style.transform='translateY(0)'" ${!scriptEnabled ? 'disabled' : ''}>⏹️ 停止</button>
@@ -584,20 +575,14 @@
             </div>
         `;
 
-        // 全局样式
         const style = document.createElement('style');
         style.textContent = `
-            /* 开关 - 禁用状态（灰色） */
             .slider { background: #e0e0e0 !important; }
-            
-            /* 开关 - 启用状态（主题紫色） */
             .slider.active,
             .switch input:checked + .slider { 
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important; 
                 box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4), inset 0 1px 2px rgba(255,255,255,0.2) !important;
             }
-            
-            /* 开关圆点 */
             .slider:before { 
                 content: ""; 
                 position: absolute; 
@@ -610,21 +595,13 @@
                 border-radius: 50%; 
                 box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             }
-            
-            /* 启用时圆点位置 */
             .slider.active:before,
             .switch input:checked + .slider:before { 
                 transform: translateX(24px); 
                 box-shadow: 0 2px 6px rgba(0,0,0,0.3);
             }
-            
-            /* 速度按钮悬停 */
             .speed-btn:hover { background: rgba(102, 126, 234, 0.1) !important; }
-            
-            /* 开关悬停效果 */
-            .switch:hover .slider { 
-                filter: brightness(1.05);
-            }
+            .switch:hover .slider { filter: brightness(1.05); }
         `;
         document.head.appendChild(style);
 
@@ -632,7 +609,6 @@
         container.appendChild(panel);
         document.body.appendChild(container);
 
-        // 事件绑定
         let isOpen = false;
         let isDragging = false;
 
@@ -684,7 +660,6 @@
             btn.onclick = () => setSpeedMode(btn.dataset.mode);
         });
 
-        // 悬停效果
         let hideTimer;
         container.addEventListener('mouseenter', () => {
             clearTimeout(hideTimer);
@@ -694,7 +669,6 @@
             hideTimer = setTimeout(() => container.style.opacity = '0.6', 500);
         });
 
-        // 拖拽
         let startX, startY, offsetX, offsetY;
 
         const onMove = (e) => {
@@ -791,7 +765,6 @@
         }, 100);
     });
 
-    // 定期更新进度
     setInterval(() => {
         if (document.getElementById('ouchn-brusher-progress')) {
             Progress.updateDisplay();
