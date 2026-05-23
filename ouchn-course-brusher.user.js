@@ -3,7 +3,7 @@
 // @namespace    https://github.com/lucky845/ouchn-course-brusher-script
 // @downloadURL  https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher.user.js
 // @updateURL    https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher.user.js
-// @version      1.6.2
+// @version      1.6.3
 // @description  这是一个自动刷完学习项目的脚本，适用于国家开放大学实验学院的 Moodle 平台。（个人自用）
 // @author       lucky845
 // @match        https://moodle.syxy.ouchn.cn/mod/*
@@ -41,6 +41,34 @@
         POSITION: 'ouchn_brusher_position',
         SETTINGS: 'ouchn_brusher_settings_v2',
         SESSION: 'ouchn_brusher_session'
+    };
+
+    const MESSAGES = {
+        SCRIPT_STARTED: '脚本已启动',
+        SCRIPT_RESUMED: '脚本已恢复',
+        SCRIPT_PAUSED: '脚本已暂停',
+        SCRIPT_DISABLED: '脚本已禁用',
+        WAKE_LOCK_ENABLED: '防息屏已开启',
+        WAKE_LOCK_DISABLED: '防息屏已关闭',
+        WAKE_LOCK_FAILED: '防息屏启动失败',
+        WAKE_LOCK_FALLBACK: '使用兼容模式防息屏',
+        WAKE_LOCK_ENABLED_PAUSED: '防息屏已开启（脚本暂停时不会生效）',
+        ANTI_DETECTION_ENABLED: '防检测模式已开启',
+        ANTI_DETECTION_DISABLED: '防检测模式已关闭',
+        SPEED_MODE_CHANGED: (modeName) => `已切换到${modeName}模式`,
+        PLAYBACK_RATE_SET: (rate) => `视频播放速度已设置为 ${rate}x`,
+        PLAYBACK_RATE_LOCKED: (rate) => `视频播放速度已锁定为 ${rate}x`,
+        PLAYBACK_RATE_RESET: '已自动重置视频播放速度为1x',
+        PLAYBACK_RATE_NOT_AVAILABLE: '视频播放速度调节仅在快速模式下可用',
+        VIDEO_STARTED: '视频开始播放',
+        VIDEO_COMPLETED: '视频播放完成',
+        PAGE_REVISIBLE: '页面重新可见，重新启动脚本...',
+        FINDING_NEXT_ITEM: '查找下一个学习项目...',
+        GOING_TO_NEXT_ITEM: (current, total) => `跳转到下一个项目（${current}/${total}）`,
+        ALL_COMPLETED: '所有项目已完成！',
+        PROCESSING_COURSE_PAGE: '处理课程页面...',
+        PROCESSING_LEARNING_ITEM: '处理学习项目页面...',
+        DETECTED_VIDEO: '检测到视频，开始播放'
     };
 
     const DEFAULT_SETTINGS = {
@@ -141,8 +169,9 @@
     const WakeLock = {
         lock: null,
         enabled: false,
+        reAcquireTimer: null,
 
-        async acquire() {
+        async acquire(logMessage = true) {
             if (!settings.wakeLock || !scriptEnabled) return;
             try {
                 if ('wakeLock' in navigator) {
@@ -151,30 +180,39 @@
                     this.lock.addEventListener('release', () => {
                         this.enabled = false;
                         this.lock = null;
-                        // 如果脚本还在运行且用户希望保持唤醒，自动重新获取
+                        if (this.reAcquireTimer) {
+                            clearTimeout(this.reAcquireTimer);
+                            this.reAcquireTimer = null;
+                        }
                         if (settings.wakeLock && scriptEnabled && document.visibilityState === 'visible') {
-                            setTimeout(() => this.acquire(), 1000);
+                            this.reAcquireTimer = setTimeout(() => {
+                                this.reAcquireTimer = null;
+                                this.acquire(false);
+                            }, 1000);
                         }
                     });
-                    Log.success('防息屏已开启');
+                    if (logMessage) Log.success(MESSAGES.WAKE_LOCK_ENABLED);
                 } else {
-                    // 降级方案：使用隐藏视频保持唤醒
                     this._fallbackStart();
-                    Log.info('使用兼容模式防息屏');
+                    if (logMessage) Log.info(MESSAGES.WAKE_LOCK_FALLBACK);
                 }
             } catch (err) {
-                Log.warn('防息屏启动失败: ' + err.message);
+                if (logMessage) Log.warn(`${MESSAGES.WAKE_LOCK_FAILED}: ${err.message}`);
             }
         },
 
         release() {
+            if (this.reAcquireTimer) {
+                clearTimeout(this.reAcquireTimer);
+                this.reAcquireTimer = null;
+            }
             if (this.lock) {
                 this.lock.release();
                 this.lock = null;
                 this.enabled = false;
             }
             this._fallbackStop();
-            Log.warn('防息屏已关闭');
+            Log.warn(MESSAGES.WAKE_LOCK_DISABLED);
         },
 
         _fallbackStart() {
@@ -274,6 +312,7 @@
     // ==================== 视频管理 ====================
     const Video = {
         protectedVideos: new WeakMap(),
+        activeIntervals: new Set(),
         
         find() {
             return safeCall(() => {
@@ -299,6 +338,7 @@
                     const config = this.protectedVideos.get(video);
                     if (config.targetRate === validRate) return;
                     clearInterval(config.interval);
+                    this.activeIntervals.delete(config.interval);
                 }
                 
                 try {
@@ -330,16 +370,20 @@
                             if (video.playbackRate !== video._forceTargetRate) {
                                 video.playbackRate = video._forceTargetRate;
                             }
+                        } else {
+                            clearInterval(interval);
+                            this.activeIntervals.delete(interval);
                         }
                     });
                 }, 500);
                 
+                this.activeIntervals.add(interval);
                 this.protectedVideos.set(video, {
                     targetRate: validRate,
                     interval: interval
                 });
                 
-                Log.info(`视频播放速度已锁定为 ${validRate}x`);
+                Log.info(MESSAGES.PLAYBACK_RATE_LOCKED(validRate));
             });
         },
 
@@ -362,7 +406,7 @@
                             if (settings?.speedMode === 'fast' && settings?.videoPlaybackRate && settings?.videoPlaybackRate !== 1) {
                                 this.setPlaybackRate(video, settings.videoPlaybackRate);
                             }
-                            Log.success('视频开始播放');
+                            Log.success(MESSAGES.VIDEO_STARTED);
                             return true;
                         }
                         return true;
@@ -379,7 +423,7 @@
                 if (!video) return;
                 
                 const handleEnded = () => {
-                    Log.success('视频播放完成');
+                    Log.success(MESSAGES.VIDEO_COMPLETED);
                     sessionStats.itemsCompleted = (sessionStats?.itemsCompleted || 0) + 1;
                     saveSessionStats();
                     Progress.updateDisplay();
@@ -388,13 +432,18 @@
 
                 video.addEventListener('ended', handleEnded);
 
-                setInterval(() => {
+                const checkInterval = setInterval(() => {
                     safeCall(() => {
                         if (video && !video.ended && video.paused) {
                             this.play(video).catch(() => {});
+                        } else if (!document.contains(video)) {
+                            clearInterval(checkInterval);
+                            this.activeIntervals.delete(checkInterval);
                         }
                     });
                 }, settings?.videoCheckInterval || 10000);
+                
+                this.activeIntervals.add(checkInterval);
 
                 const enableSound = () => {
                     try {
@@ -408,6 +457,14 @@
                     this.setPlaybackRate(video, settings.videoPlaybackRate);
                 }
             });
+        },
+        
+        cleanup() {
+            this.activeIntervals.forEach(interval => {
+                clearInterval(interval);
+            });
+            this.activeIntervals.clear();
+            this.protectedVideos = new WeakMap();
         }
     };
 
@@ -475,7 +532,7 @@
     // ==================== 导航 ====================
     async function goToNextItem() {
         safeCall(async () => {
-            Log.info('查找下一个学习项目...');
+            Log.info(MESSAGES.FINDING_NEXT_ITEM);
             
             const sidebar = Sidebar.find();
             if (sidebar) {
@@ -483,14 +540,14 @@
                 const currentIndex = Sidebar.findCurrentIndex(items);
                 
                 if (currentIndex >= 0 && currentIndex < items.length - 1 && items[currentIndex + 1]?.href) {
-                    Log.info(`跳转到下一个项目（${currentIndex + 2}/${items.length}）`);
+                    Log.info(MESSAGES.GOING_TO_NEXT_ITEM(currentIndex + 2, items.length));
                     await sleep(500);
                     window.location.href = items[currentIndex + 1].href;
                     return;
                 }
             }
             
-            Log.success('所有项目已完成！');
+            Log.success(MESSAGES.ALL_COMPLETED);
             pauseScript();
         });
     }
@@ -498,12 +555,12 @@
     // ==================== 页面处理 ====================
     async function processLearningItem() {
         safeCall(async () => {
-            Log.info('处理学习项目页面...');
+            Log.info(MESSAGES.PROCESSING_LEARNING_ITEM);
             AntiDetection.start();
 
             const video = Video.find();
             if (video) {
-                Log.info('检测到视频，开始播放');
+                Log.info(MESSAGES.DETECTED_VIDEO);
                 const playing = await Video.play(video);
                 if (playing) {
                     Video.setupAutoAdvance(video, goToNextItem);
@@ -523,7 +580,7 @@
 
     async function processCoursePage() {
         safeCall(async () => {
-            Log.info('处理课程页面...');
+            Log.info(MESSAGES.PROCESSING_COURSE_PAGE);
             Progress.updateDisplay();
             
             const items = Item.getAll();
@@ -536,7 +593,7 @@
                 }
             }
             
-            Log.success('所有项目已完成！');
+            Log.success(MESSAGES.ALL_COMPLETED);
             pauseScript();
         });
     }
@@ -548,7 +605,8 @@
             localStorage.setItem(STORAGE_KEY.ENABLED, 'false');
             AntiDetection.stop();
             WakeLock.release();
-            Log.success('脚本已暂停');
+            Video.cleanup();
+            Log.success(MESSAGES.SCRIPT_PAUSED);
             updateButtonStates();
         });
     }
@@ -557,12 +615,12 @@
         safeCall(() => {
             scriptEnabled = true;
             localStorage.setItem(STORAGE_KEY.ENABLED, 'true');
-            Log.info('脚本已恢复');
+            Log.success(MESSAGES.SCRIPT_RESUMED);
             updateButtonStates();
             init();
             
             if (settings?.wakeLock) {
-                WakeLock.acquire();
+                WakeLock.acquire(false);
             }
         });
     }
@@ -656,19 +714,19 @@
                             btn.style.background = active ? '#667eea' : '#fff';
                             btn.style.color = active ? '#fff' : '#666';
                         });
-                        Log.info('已自动重置视频播放速度为1x');
+                        Log.info(MESSAGES.PLAYBACK_RATE_RESET);
                     }
                 }
             }
             
-            Log.success(`已切换到${config.name}模式`);
+            Log.success(MESSAGES.SPEED_MODE_CHANGED(config.name));
         });
     }
 
     function setVideoPlaybackRate(rate) {
         safeCall(() => {
             if (settings?.speedMode !== 'fast') {
-                Log.warn('视频播放速度调节仅在快速模式下可用');
+                Log.warn(MESSAGES.PLAYBACK_RATE_NOT_AVAILABLE);
                 return;
             }
             const validRate = Math.max(0.25, Math.min(4, rate));
@@ -686,7 +744,7 @@
                 Video.setPlaybackRate(video, validRate);
             }
             
-            Log.success(`视频播放速度已设置为 ${validRate}x`);
+            Log.success(MESSAGES.PLAYBACK_RATE_SET(validRate));
         });
     }
 
@@ -830,7 +888,7 @@
                 <div style="padding: 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
                     <span style="display: flex; align-items: center; gap: 8px;">
                         <span style="font-size: 18px;">🎓</span>
-                        <span>刷课助手 v1.6.2</span>
+                        <span>刷课助手 v1.6.3</span>
                     </span>
                     <button id="ouchn-brusher-close" style="background: rgba(255,255,255,0.2); border: none; color: white; cursor: pointer; font-size: 16px; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">✕</button>
                 </div>
@@ -1013,10 +1071,10 @@
                             const slider = this.parentElement.querySelector('.slider');
                             if (this.checked) {
                                 slider.classList.add('active');
-                                Log.success('防检测模式已开启');
+                                Log.success(MESSAGES.ANTI_DETECTION_ENABLED);
                             } else {
                                 slider.classList.remove('active');
-                                Log.warn('防检测模式已关闭');
+                                Log.warn(MESSAGES.ANTI_DETECTION_DISABLED);
                             }
                             settings.antiDetection = this.checked;
                             saveSettings(settings);
@@ -1047,9 +1105,9 @@
                                 }
                             } else {
                                 if (this.checked) {
-                                    Log.success('防息屏已开启（脚本暂停时不会生效）');
+                                    Log.success(MESSAGES.WAKE_LOCK_ENABLED_PAUSED);
                                 } else {
-                                    Log.warn('防息屏已关闭');
+                                    Log.warn(MESSAGES.WAKE_LOCK_DISABLED);
                                 }
                             }
                         });
@@ -1152,6 +1210,13 @@
                     }
                 });
             });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && isOpen) {
+                    panel.style.display = 'none';
+                    isOpen = false;
+                }
+            });
         });
     }
 
@@ -1163,14 +1228,14 @@
             setTimeout(() => Progress.updateDisplay(), 100);
 
             if (!scriptEnabled) {
-                Log.warn('脚本已禁用');
+                Log.warn(MESSAGES.SCRIPT_DISABLED);
                 return;
             }
 
             if (initialized) return;
             initialized = true;
 
-            Log.success('脚本已启动');
+            Log.success(MESSAGES.SCRIPT_STARTED);
 
             await sleep(100);
             Position.snap();
@@ -1196,7 +1261,7 @@
         safeCall(() => {
             if (document.visibilityState === 'visible') {
                 // 页面重新可见时重新初始化
-                Log.info('页面重新可见，重新启动脚本...');
+                Log.info(MESSAGES.PAGE_REVISIBLE);
                 setTimeout(() => {
                     // 检查是否需要重新创建控制面板
                     if (!document.getElementById('ouchn-brusher-container')) {
