@@ -572,7 +572,17 @@
             const startBtn = document.getElementById('ouchn-brusher-start');
             const stopBtn = document.getElementById('ouchn-brusher-stop');
             
-            if (toggle) toggle.checked = scriptEnabled;
+            if (toggle) {
+                toggle.checked = scriptEnabled;
+                const slider = toggle.parentElement.querySelector('.slider');
+                if (slider) {
+                    if (scriptEnabled) {
+                        slider.classList.add('active');
+                    } else {
+                        slider.classList.remove('active');
+                    }
+                }
+            }
             if (startBtn) startBtn.disabled = scriptEnabled;
             if (stopBtn) stopBtn.disabled = !scriptEnabled;
         });
