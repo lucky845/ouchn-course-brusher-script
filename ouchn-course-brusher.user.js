@@ -1164,6 +1164,30 @@
     window.addEventListener('load', () => safeCall(() => !initialized && setTimeout(init, 500)));
     window.addEventListener('hashchange', () => safeCall(() => { initialized = false; setTimeout(init, 1000); }));
     
+    // 页面可见性变化监听 - 解决切换标签页后脚本不生效的问题
+    document.addEventListener('visibilitychange', () => {
+        safeCall(() => {
+            if (document.visibilityState === 'visible') {
+                // 页面重新可见时重新初始化
+                Log.info('页面重新可见，重新启动脚本...');
+                setTimeout(() => {
+                    // 检查是否需要重新创建控制面板
+                    if (!document.getElementById('ouchn-brusher-container')) {
+                        initialized = false;
+                        init();
+                    } else if (scriptEnabled) {
+                        // 控制面板存在，检查是否需要重新启动
+                        Progress.updateDisplay();
+                        if (!document.querySelector('video')?.paused && settings?.speedMode === 'fast' && settings?.videoPlaybackRate !== 1) {
+                            const video = Video.find();
+                            if (video) Video.setPlaybackRate(video, settings.videoPlaybackRate);
+                        }
+                    }
+                }, 300);
+            }
+        });
+    });
+    
     let resizeTimer;
     window.addEventListener('resize', () => {
         safeCall(() => {
