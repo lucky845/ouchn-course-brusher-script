@@ -3,7 +3,7 @@
 // @namespace    https://github.com/lucky845/ouchn-course-brusher-script
 // @downloadURL  https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher.user.js
 // @updateURL    https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher.user.js
-// @version      1.5.1
+// @version      1.6.2
 // @description  这是一个自动刷完学习项目的脚本，适用于国家开放大学实验学院的 Moodle 平台。（个人自用）
 // @author       lucky845
 // @match        https://moodle.syxy.ouchn.cn/mod/*
@@ -47,6 +47,7 @@
         videoCheckInterval: 10000,
         pageWaitTime: 5000,
         speedMode: 'normal',
+        videoPlaybackRate: 1,
         antiDetection: true,
         wakeLock: true
     };
@@ -271,6 +272,8 @@
 
     // ==================== 视频管理 ====================
     const Video = {
+        protectedVideos: new WeakMap(),
+        
         find() {
             return safeCall(() => {
                 let video = document.querySelector('video');
@@ -286,6 +289,67 @@
             }, null);
         },
 
+        protectPlaybackRate(video, rate) {
+            safeCall(() => {
+                if (!video) return;
+                const validRate = Math.max(0.25, Math.min(4, rate));
+                
+                if (this.protectedVideos.has(video)) {
+                    const config = this.protectedVideos.get(video);
+                    if (config.targetRate === validRate) return;
+                    clearInterval(config.interval);
+                }
+                
+                try {
+                    const originalPlaybackRate = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'playbackRate');
+                    if (originalPlaybackRate && !originalPlaybackRate.isProtected) {
+                        Object.defineProperty(video, 'playbackRate', {
+                            configurable: true,
+                            enumerable: true,
+                            get() {
+                                return originalPlaybackRate.get.call(this);
+                            },
+                            set(value) {
+                                if (this._forceTargetRate !== undefined) {
+                                    originalPlaybackRate.set.call(this, this._forceTargetRate);
+                                } else {
+                                    originalPlaybackRate.set.call(this, value);
+                                }
+                            }
+                        });
+                    }
+                } catch (e) {}
+                
+                video._forceTargetRate = validRate;
+                video.playbackRate = validRate;
+                
+                const interval = setInterval(() => {
+                    safeCall(() => {
+                        if (video && document.contains(video) && video._forceTargetRate !== undefined) {
+                            if (video.playbackRate !== video._forceTargetRate) {
+                                video.playbackRate = video._forceTargetRate;
+                            }
+                        }
+                    });
+                }, 500);
+                
+                this.protectedVideos.set(video, {
+                    targetRate: validRate,
+                    interval: interval
+                });
+                
+                Log.info(`视频播放速度已锁定为 ${validRate}x`);
+            });
+        },
+
+        setPlaybackRate(video, rate) {
+            safeCall(() => {
+                if (!video) return;
+                const validRate = Math.max(0.25, Math.min(4, rate));
+                this.protectPlaybackRate(video, validRate);
+            });
+        },
+
         async play(video) {
             return safeCall(async () => {
                 if (!video) return false;
@@ -294,6 +358,9 @@
                         if (video.paused) {
                             video.muted = true;
                             await video.play();
+                            if (settings?.speedMode === 'fast' && settings?.videoPlaybackRate && settings?.videoPlaybackRate !== 1) {
+                                this.setPlaybackRate(video, settings.videoPlaybackRate);
+                            }
                             Log.success('视频开始播放');
                             return true;
                         }
@@ -335,6 +402,10 @@
                     } catch (e) {}
                 };
                 document.addEventListener('click', enableSound);
+
+                if (settings?.speedMode === 'fast' && settings?.videoPlaybackRate && settings?.videoPlaybackRate !== 1) {
+                    this.setPlaybackRate(video, settings.videoPlaybackRate);
+                }
             });
         }
     };
@@ -538,7 +609,55 @@
                 btn.style.color = active ? '#fff' : '#333';
             });
             
+            const playbackRateContainer = document.getElementById('playback-rate-container');
+            if (playbackRateContainer) {
+                if (mode === 'fast') {
+                    playbackRateContainer.style.display = 'block';
+                } else {
+                    playbackRateContainer.style.display = 'none';
+                    if (settings.videoPlaybackRate !== 1) {
+                        settings.videoPlaybackRate = 1;
+                        saveSettings(settings);
+                        const video = Video.find();
+                        if (video) {
+                            Video.setPlaybackRate(video, 1);
+                        }
+                        document.querySelectorAll('.playback-rate-btn').forEach(btn => {
+                            const active = parseFloat(btn.dataset.rate) === 1;
+                            btn.style.background = active ? '#667eea' : '#fff';
+                            btn.style.color = active ? '#fff' : '#666';
+                        });
+                        Log.info('已自动重置视频播放速度为1x');
+                    }
+                }
+            }
+            
             Log.success(`已切换到${config.name}模式`);
+        });
+    }
+
+    function setVideoPlaybackRate(rate) {
+        safeCall(() => {
+            if (settings?.speedMode !== 'fast') {
+                Log.warn('视频播放速度调节仅在快速模式下可用');
+                return;
+            }
+            const validRate = Math.max(0.25, Math.min(4, rate));
+            settings.videoPlaybackRate = validRate;
+            saveSettings(settings);
+            
+            document.querySelectorAll('.playback-rate-btn').forEach(btn => {
+                const active = parseFloat(btn.dataset.rate) === validRate;
+                btn.style.background = active ? '#667eea' : '#fff';
+                btn.style.color = active ? '#fff' : '#333';
+            });
+            
+            const video = Video.find();
+            if (video) {
+                Video.setPlaybackRate(video, validRate);
+            }
+            
+            Log.success(`视频播放速度已设置为 ${validRate}x`);
         });
     }
 
@@ -682,7 +801,7 @@
                 <div style="padding: 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
                     <span style="display: flex; align-items: center; gap: 8px;">
                         <span style="font-size: 18px;">🎓</span>
-                        <span>刷课助手 v1.5.1</span>
+                        <span>刷课助手 v1.6.2</span>
                     </span>
                     <button id="ouchn-brusher-close" style="background: rgba(255,255,255,0.2); border: none; color: white; cursor: pointer; font-size: 16px; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">✕</button>
                 </div>
@@ -699,6 +818,17 @@
                             <button class="speed-btn" data-mode="normal" style="flex: 1; padding: 8px 4px; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; background: ${settings?.speedMode === 'normal' ? '#fff' : 'transparent'}; color: ${settings?.speedMode === 'normal' ? '#667eea' : '#666'}; box-shadow: ${settings?.speedMode === 'normal' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'};">🐢 正常</button>
                             <button class="speed-btn" data-mode="fast" style="flex: 1; padding: 8px 4px; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; background: ${settings?.speedMode === 'fast' ? '#fff' : 'transparent'}; color: ${settings?.speedMode === 'fast' ? '#667eea' : '#666'}; box-shadow: ${settings?.speedMode === 'fast' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'};">🚀 快速</button>
                             <button class="speed-btn" data-mode="stealth" style="flex: 1; padding: 8px 4px; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; background: ${settings?.speedMode === 'stealth' ? '#fff' : 'transparent'}; color: ${settings?.speedMode === 'stealth' ? '#667eea' : '#666'}; box-shadow: ${settings?.speedMode === 'stealth' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'};">🥷 低调</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 视频播放速度 -->
+                    <div id="playback-rate-container" style="margin-bottom: 16px; display: ${settings?.speedMode === 'fast' ? 'block' : 'none'};">
+                        <div style="font-size: 12px; color: #666; margin-bottom: 8px; font-weight: 500;">🎬 视频播放速度</div>
+                        <div style="display: flex; background: #f0f0f0; border-radius: 10px; padding: 4px; gap: 4px;">
+                            <button class="playback-rate-btn" data-rate="1" style="flex: 1; padding: 8px 4px; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; background: ${settings?.videoPlaybackRate === 1 ? '#667eea' : '#fff'}; color: ${settings?.videoPlaybackRate === 1 ? '#fff' : '#666'}; box-shadow: ${settings?.videoPlaybackRate === 1 ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'};">1x</button>
+                            <button class="playback-rate-btn" data-rate="1.5" style="flex: 1; padding: 8px 4px; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; background: ${settings?.videoPlaybackRate === 1.5 ? '#667eea' : '#fff'}; color: ${settings?.videoPlaybackRate === 1.5 ? '#fff' : '#666'}; box-shadow: ${settings?.videoPlaybackRate === 1.5 ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'};">1.5x</button>
+                            <button class="playback-rate-btn" data-rate="2" style="flex: 1; padding: 8px 4px; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; background: ${settings?.videoPlaybackRate === 2 ? '#667eea' : '#fff'}; color: ${settings?.videoPlaybackRate === 2 ? '#fff' : '#666'}; box-shadow: ${settings?.videoPlaybackRate === 2 ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'};">2x</button>
+                            <button class="playback-rate-btn" data-rate="3" style="flex: 1; padding: 8px 4px; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; background: ${settings?.videoPlaybackRate === 3 ? '#667eea' : '#fff'}; color: ${settings?.videoPlaybackRate === 3 ? '#fff' : '#666'}; box-shadow: ${settings?.videoPlaybackRate === 3 ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'};">3x</button>
                         </div>
                     </div>
                     
@@ -903,6 +1033,12 @@
             safeCall(() => {
                 document.querySelectorAll('.speed-btn').forEach(btn => {
                     btn.onclick = () => safeCall(() => setSpeedMode(btn.dataset.mode));
+                });
+            });
+
+            safeCall(() => {
+                document.querySelectorAll('.playback-rate-btn').forEach(btn => {
+                    btn.onclick = () => safeCall(() => setVideoPlaybackRate(parseFloat(btn.dataset.rate)));
                 });
             });
 
