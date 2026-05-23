@@ -571,6 +571,7 @@
             const toggle = document.getElementById('ouchn-brusher-toggle');
             const startBtn = document.getElementById('ouchn-brusher-start');
             const stopBtn = document.getElementById('ouchn-brusher-stop');
+            const statusDiv = document.getElementById('ouchn-brusher-status');
             
             if (toggle) {
                 toggle.checked = scriptEnabled;
@@ -583,8 +584,25 @@
                     }
                 }
             }
-            if (startBtn) startBtn.disabled = scriptEnabled;
-            if (stopBtn) stopBtn.disabled = !scriptEnabled;
+            
+            if (startBtn) {
+                startBtn.disabled = scriptEnabled;
+                startBtn.style.opacity = scriptEnabled ? '0.5' : '1';
+                startBtn.style.pointerEvents = scriptEnabled ? 'none' : 'auto';
+            }
+            
+            if (stopBtn) {
+                stopBtn.disabled = !scriptEnabled;
+                stopBtn.style.opacity = !scriptEnabled ? '0.5' : '1';
+                stopBtn.style.pointerEvents = !scriptEnabled ? 'none' : 'auto';
+            }
+            
+            if (statusDiv) {
+                statusDiv.style.background = scriptEnabled ? 'rgba(102, 126, 234, 0.1)' : 'rgba(150, 150, 150, 0.1)';
+                statusDiv.style.color = scriptEnabled ? '#667eea' : '#666';
+                statusDiv.style.borderColor = scriptEnabled ? 'rgba(102, 126, 234, 0.2)' : 'rgba(150, 150, 150, 0.2)';
+                statusDiv.textContent = scriptEnabled ? '✅ 脚本运行中' : '⏸️ 脚本已暂停';
+            }
         });
     }
 
@@ -994,8 +1012,10 @@
                             const slider = this.parentElement.querySelector('.slider');
                             if (this.checked) {
                                 slider.classList.add('active');
+                                Log.success('防检测模式已开启');
                             } else {
                                 slider.classList.remove('active');
+                                Log.warn('防检测模式已关闭');
                             }
                             settings.antiDetection = this.checked;
                             saveSettings(settings);
