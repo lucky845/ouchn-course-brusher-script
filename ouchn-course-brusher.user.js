@@ -32,9 +32,9 @@
     };
 
     const SPEED_MODES = {
-        normal: { videoCheck: 10000, pageWait: 5000 },
-        fast: { videoCheck: 5000, pageWait: 2000 },
-        stealth: { videoCheck: 30000, pageWait: 15000 }
+        normal: { name: '正常', videoCheck: 10000, pageWait: 5000 },
+        fast: { name: '快速', videoCheck: 5000, pageWait: 2000 },
+        stealth: { name: '低调', videoCheck: 30000, pageWait: 15000 }
     };
 
     // ==================== 状态 ====================
