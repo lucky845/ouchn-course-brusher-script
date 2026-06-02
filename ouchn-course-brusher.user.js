@@ -3,7 +3,7 @@
 // @namespace    https://github.com/lucky845/ouchn-course-brusher-script
 // @downloadURL  https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher.user.js
 // @updateURL    https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher.user.js
-// @version      1.6.3
+// @version      1.7.1
 // @description  这是一个自动刷完学习项目的脚本，适用于国家开放大学实验学院的 Moodle 平台。（个人自用）
 // @author       lucky845
 // @match        https://moodle.syxy.ouchn.cn/mod/*
@@ -68,7 +68,10 @@
         ALL_COMPLETED: '所有项目已完成！',
         PROCESSING_COURSE_PAGE: '处理课程页面...',
         PROCESSING_LEARNING_ITEM: '处理学习项目页面...',
-        DETECTED_VIDEO: '检测到视频，开始播放'
+        DETECTED_VIDEO: '检测到视频，开始播放',
+        QUIZ_DETECTED: '检测到答题页面，刷课功能已禁用',
+        QUESTIONS_EXTRACTED: (count) => `已提取 ${count} 道题目`,
+        QUESTIONS_COPIED: '题目已复制到剪贴板'
     };
 
     const DEFAULT_SETTINGS = {
@@ -306,6 +309,156 @@
                     `;
                 }
             });
+        }
+    };
+
+    // ==================== 题目提取 ====================
+    const QuizExtractor = {
+        isQuizPage() {
+            return safeCall(() => {
+                return window.location.href.includes('/mod/quiz/attempt.php');
+            }, false);
+        },
+
+        extractQuestions() {
+            return safeCall(() => {
+                const questions = [];
+                const questionElements = document.querySelectorAll('.que');
+
+                questionElements.forEach((qElement, index) => {
+                    const question = {
+                        number: index + 1,
+                        text: '',
+                        type: '未知题型',
+                        options: [],
+                        answer: '',
+                        rawHtml: ''
+                    };
+
+                    // 保存原始HTML用于调试
+                    question.rawHtml = qElement.outerHTML.substring(0, 500);
+
+                    // 提取题目编号
+                    const qNumber = qElement.querySelector('.qno')?.textContent?.trim();
+                    if (qNumber) {
+                        const parsed = parseInt(qNumber);
+                        if (!isNaN(parsed)) question.number = parsed;
+                    }
+
+                    // 提取题目文本
+                    const qTextEl = qElement.querySelector('.qtext');
+                    if (qTextEl) {
+                        question.text = qTextEl.innerText?.trim() || qTextEl.textContent?.trim() || '';
+                    }
+
+                    // 确定题目类型 - 更全面的识别
+                    if (qElement.classList.contains('multichoice')) {
+                        question.type = '单选题';
+                    } else if (qElement.classList.contains('truefalse')) {
+                        question.type = '判断题';
+                    } else if (qElement.classList.contains('shortanswer')) {
+                        question.type = '简答题';
+                    } else if (qElement.classList.contains('essay')) {
+                        question.type = '论述题';
+                    } else if (qElement.classList.contains('match')) {
+                        question.type = '匹配题';
+                    } else if (qElement.classList.contains('multichoiceset')) {
+                        question.type = '多选题';
+                    } else if (qElement.classList.contains('numerical')) {
+                        question.type = '数字题';
+                    } else if (qElement.classList.contains('calculated')) {
+                        question.type = '计算题';
+                    } else {
+                        // 尝试通过选项结构判断
+                        const hasRadio = qElement.querySelector('input[type="radio"]');
+                        const hasCheckbox = qElement.querySelector('input[type="checkbox"]');
+                        if (hasRadio) question.type = '单选题';
+                        else if (hasCheckbox) question.type = '多选题';
+                    }
+
+                    // 提取选项 - 改进的方法
+                    const answerDiv = qElement.querySelector('.answer');
+                    if (answerDiv) {
+                        // 方法1: 查找所有选项行
+                        const optionRows = answerDiv.querySelectorAll('.r0, .r1, .answer > div');
+                        optionRows.forEach((optRow, optIndex) => {
+                            // 提取选项文本
+                            let optText = '';
+                            const label = optRow.querySelector('label');
+                            if (label) {
+                                optText = label.innerText?.trim() || label.textContent?.trim() || '';
+                            } else {
+                                optText = optRow.innerText?.trim() || optRow.textContent?.trim() || '';
+                            }
+
+                            if (optText && optText.length > 0) {
+                                // 清理选项文本，移除多余内容
+                                optText = optText.replace(/^[A-Za-z0-9][.、)\]]?\s*/, '');
+                                question.options.push(optText);
+                            }
+
+                            // 检查是否选中
+                            const input = optRow.querySelector('input');
+                            if (input && input.checked) {
+                                question.answer = optText || input.value || '已选择';
+                            }
+                        });
+
+                        // 如果方法1没找到，尝试直接查找所有label
+                        if (question.options.length === 0) {
+                            const allLabels = answerDiv.querySelectorAll('label');
+                            allLabels.forEach(label => {
+                                const optText = label.innerText?.trim() || label.textContent?.trim() || '';
+                                if (optText && optText.length > 0) {
+                                    const cleaned = optText.replace(/^[A-Za-z0-9][.、)\]]?\s*/, '');
+                                    question.options.push(cleaned);
+                                }
+                            });
+                        }
+                    }
+
+                    // 判断题特殊处理
+                    if (question.type === '判断题' && question.options.length === 0) {
+                        question.options.push('正确', '错误');
+                    }
+
+                    // 如果有题目文本，就保存
+                    if (question.text) {
+                        questions.push(question);
+                    }
+                });
+
+                return questions;
+            }, []);
+        },
+
+        formatQuestions(questions) {
+            return safeCall(() => {
+                let formatted = '';
+                questions.forEach((q, index) => {
+                    formatted += `${q.number}. ${q.text}\n`;
+                    if (q.type && q.type !== '未知题型') {
+                        formatted += `   【${q.type}】\n`;
+                    }
+                    if (q.options.length > 0) {
+                        q.options.forEach((opt, optIndex) => {
+                            formatted += `   ${String.fromCharCode(65 + optIndex)}. ${opt}\n`;
+                        });
+                    }
+                    if (q.answer) {
+                        formatted += `   答案：${q.answer}\n`;
+                    }
+                    formatted += '\n';
+                });
+                return formatted;
+            }, '');
+        },
+
+        copyToClipboard(text) {
+            return safeCall(async () => {
+                await navigator.clipboard.writeText(text);
+                return true;
+            }, false);
         }
     };
 
@@ -820,6 +973,278 @@
         }
     };
 
+    // ==================== 答题面板 ====================
+    function createQuizPanel() {
+        safeCall(() => {
+            if (document.getElementById('ouchn-quiz-container')) return;
+            if (!document.body) return;
+
+            const pos = Position.load();
+            
+            const quizContainer = document.createElement('div');
+            quizContainer.id = 'ouchn-quiz-container';
+            quizContainer.style.cssText = `
+                position: fixed; left: 0; top: 0;
+                transform: translate(${pos.x}px, ${pos.y}px);
+                z-index: 999999; font-family: Arial, sans-serif;
+                transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.3s ease;
+                user-select: none; touch-action: none; will-change: transform;
+            `;
+
+            // 悬浮按钮 - 答题模式
+            const quizButton = document.createElement('div');
+            quizButton.style.cssText = `
+                width: 56px; height: 56px;
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                border-radius: 50%; cursor: pointer;
+                box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);
+                display: flex; align-items: center; justify-content: center;
+                color: white; font-size: 24px;
+                transition: all 0.3s ease;
+            `;
+            quizButton.innerHTML = '📝';
+
+            // 展开面板
+            const quizPanel = document.createElement('div');
+            quizPanel.id = 'ouchn-quiz-panel';
+            quizPanel.style.cssText = `
+                position: absolute; right: 66px; top: 0;
+                background: white; border-radius: 16px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+                padding: 20px; min-width: 280px; max-width: 400px;
+                display: none; flex-direction: column; gap: 12px;
+            `;
+
+            // 面板标题
+            const title = document.createElement('div');
+            title.style.cssText = `
+                font-size: 18px; font-weight: bold; color: #333;
+                display: flex; align-items: center; gap: 8px;
+            `;
+            title.innerHTML = '📚 答题助手';
+
+            // 状态
+            const status = document.createElement('div');
+            status.id = 'ouchn-quiz-status';
+            status.style.cssText = `
+                padding: 8px 12px; background: rgba(245, 87, 108, 0.1);
+                border-radius: 8px; color: #f5576c;
+                font-size: 13px;
+            `;
+            status.textContent = MESSAGES.QUIZ_DETECTED;
+
+            // 提取题目按钮
+            const extractBtn = document.createElement('button');
+            extractBtn.textContent = '📋 智能提取';
+            extractBtn.style.cssText = `
+                padding: 12px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                color: white; border: none; border-radius: 8px; cursor: pointer;
+                font-size: 14px; font-weight: 600;
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+            `;
+            extractBtn.onmouseenter = () => extractBtn.style.transform = 'translateY(-2px)';
+            extractBtn.onmouseleave = () => extractBtn.style.transform = 'translateY(0)';
+            extractBtn.onclick = async () => {
+                safeCall(async () => {
+                    const questions = QuizExtractor.extractQuestions();
+                    if (questions.length > 0) {
+                        const formatted = QuizExtractor.formatQuestions(questions);
+                        const success = await QuizExtractor.copyToClipboard(formatted);
+                        if (success) {
+                            Log.success(MESSAGES.QUESTIONS_EXTRACTED(questions.length));
+                            Log.success(MESSAGES.QUESTIONS_COPIED);
+                            status.textContent = `✅ 已提取 ${questions.length} 题并复制`;
+                        }
+                    } else {
+                        status.textContent = '❌ 未找到题目';
+                    }
+                });
+            };
+
+            // 暴力提取按钮 - 备用方案
+            const forceExtractBtn = document.createElement('button');
+            forceExtractBtn.textContent = '🔍 暴力提取';
+            forceExtractBtn.style.cssText = `
+                padding: 10px; background: #667eea;
+                color: white; border: none; border-radius: 8px; cursor: pointer;
+                font-size: 13px; font-weight: 500;
+                transition: opacity 0.2s ease;
+            `;
+            forceExtractBtn.onmouseenter = () => forceExtractBtn.style.opacity = '0.9';
+            forceExtractBtn.onmouseleave = () => forceExtractBtn.style.opacity = '1';
+            forceExtractBtn.onclick = async () => {
+                safeCall(async () => {
+                    // 暴力提取所有题目内容
+                    let allText = '';
+                    const questions = document.querySelectorAll('.que');
+                    questions.forEach((q, i) => {
+                        allText += `=== 第 ${i + 1} 题 ===\n`;
+                        const text = q.innerText || q.textContent || '';
+                        // 清理格式
+                        const cleaned = text.replace(/\n\s*\n\s*\n/g, '\n\n').trim();
+                        allText += cleaned;
+                        allText += '\n\n';
+                    });
+                    if (allText) {
+                        await QuizExtractor.copyToClipboard(allText);
+                        status.textContent = `✅ 已暴力提取 ${questions.length} 题`;
+                    }
+                });
+            };
+
+            // 增强提取功能
+            const superExtractBtn = document.createElement('button');
+            superExtractBtn.textContent = '⚡ 超强提取';
+            superExtractBtn.style.cssText = `
+                padding: 10px; background: #10b981;
+                color: white; border: none; border-radius: 8px; cursor: pointer;
+                font-size: 13px; font-weight: 500;
+                transition: opacity 0.2s ease;
+            `;
+            superExtractBtn.onmouseenter = () => superExtractBtn.style.opacity = '0.9';
+            superExtractBtn.onmouseleave = () => superExtractBtn.style.opacity = '1';
+            superExtractBtn.onclick = async () => {
+                safeCall(async () => {
+                    let result = '';
+                    const questions = document.querySelectorAll('.que');
+                    
+                    questions.forEach((q, qIndex) => {
+                        result += `【第 ${qIndex + 1} 题】\n`;
+                        
+                        // 提取题干
+                        const qtext = q.querySelector('.qtext');
+                        if (qtext) {
+                            result += qtext.innerText?.trim() || qtext.textContent?.trim() || '';
+                            result += '\n';
+                        }
+                        
+                        // 提取所有选项 - 尽可能多的方式
+                        const selectors = [
+                            '.answer .r0 label',
+                            '.answer .r1 label', 
+                            '.answer label',
+                            '.answer div',
+                            'label'
+                        ];
+                        
+                        let options = [];
+                        for (const sel of selectors) {
+                            const found = q.querySelectorAll(sel);
+                            if (found.length > 0) {
+                                found.forEach(el => {
+                                    const text = el.innerText?.trim() || el.textContent?.trim();
+                                    if (text && text.length > 0 && !options.includes(text)) {
+                                        options.push(text);
+                                    }
+                                });
+                                if (options.length > 0) break;
+                            }
+                        }
+                        
+                        if (options.length > 0) {
+                            result += '--- 选项 ---\n';
+                            options.forEach((opt, i) => {
+                                // 清理选项文本
+                                let clean = opt.replace(/^[A-Za-z0-9]+[.、)\]]?\s*/, '');
+                                clean = clean.replace(/^\s*[A-Za-z0-9]\s*/, '');
+                                result += `${String.fromCharCode(65 + i)}. ${clean}\n`;
+                            });
+                        }
+                        
+                        result += '\n';
+                    });
+                    
+                    if (result) {
+                        await QuizExtractor.copyToClipboard(result);
+                        status.textContent = `⚡ 超强提取 ${questions.length} 题`;
+                    }
+                });
+            };
+
+            // 提示说明
+            const tips = document.createElement('div');
+            tips.style.cssText = `
+                font-size: 11px; color: #888; text-align: center;
+                line-height: 1.5;
+            `;
+            tips.innerHTML = '📋 智能提取: 标准格式化<br>🔍 暴力提取: 保留原始内容<br>⚡ 超强提取: 多种方式尝试<br>刷课功能已自动关闭';
+
+            quizPanel.appendChild(title);
+            quizPanel.appendChild(status);
+            quizPanel.appendChild(extractBtn);
+            quizPanel.appendChild(forceExtractBtn);
+            quizPanel.appendChild(superExtractBtn);
+            quizPanel.appendChild(tips);
+            quizContainer.appendChild(quizButton);
+            quizContainer.appendChild(quizPanel);
+            document.body.appendChild(quizContainer);
+
+            let isQuizOpen = false;
+            quizButton.onclick = () => {
+                isQuizOpen = !isQuizOpen;
+                quizPanel.style.display = isQuizOpen ? 'flex' : 'none';
+            };
+
+            document.addEventListener('click', (e) => {
+                safeCall(() => {
+                    if (!quizContainer.contains(e.target) && isQuizOpen) {
+                        quizPanel.style.display = 'none';
+                        isQuizOpen = false;
+                    }
+                });
+            });
+
+            let quizIsDragging = false;
+            let quizStartX, quizStartY, quizOffsetX, quizOffsetY;
+
+            const quizOnMove = (e) => {
+                safeCall(() => {
+                    e.preventDefault();
+                    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                    
+                    if (!quizIsDragging) {
+                        const dist = Math.sqrt(Math.pow(clientX - quizStartX, 2) + Math.pow(clientY - quizStartY, 2));
+                        if (dist > 5) quizIsDragging = true;
+                        else return;
+                    }
+                    
+                    const newX = Math.max(0, Math.min(clientX - quizOffsetX, window.innerWidth - 50));
+                    const newY = Math.max(0, Math.min(clientY - quizOffsetY, window.innerHeight - 50));
+                    quizContainer.style.transform = `translate(${newX}px, ${newY}px)`;
+                });
+            };
+
+            const quizOnEnd = () => {
+                safeCall(() => {
+                    if (quizIsDragging) quizIsDragging = false;
+                    document.removeEventListener('mousemove', quizOnMove);
+                    document.removeEventListener('mouseup', quizOnEnd);
+                });
+            };
+
+            const quizOnStart = (e) => {
+                safeCall(() => {
+                    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                    quizStartX = clientX;
+                    quizStartY = clientY;
+                    
+                    const rect = quizContainer.getBoundingClientRect();
+                    quizOffsetX = clientX - rect.left;
+                    quizOffsetY = clientY - rect.top;
+                    
+                    quizContainer.style.transition = 'none';
+                    
+                    document.addEventListener('mousemove', quizOnMove);
+                    document.addEventListener('mouseup', quizOnEnd);
+                });
+            };
+
+            quizButton.addEventListener('mousedown', quizOnStart);
+        });
+    }
+
     // ==================== 面板 ====================
     function createControlPanel() {
         safeCall(() => {
@@ -1223,6 +1648,19 @@
     // ==================== 初始化 ====================
     async function init() {
         safeCall(async () => {
+            const isQuiz = QuizExtractor.isQuizPage();
+            
+            if (isQuiz) {
+                // 答题页面 - 禁用刷课功能，显示答题助手
+                createQuizPanel();
+                Log.info(MESSAGES.QUIZ_DETECTED);
+                if (scriptEnabled) {
+                    scriptEnabled = false;
+                }
+                return;
+            }
+            
+            // 普通页面 - 正常刷课
             createControlPanel();
             
             setTimeout(() => Progress.updateDisplay(), 100);
