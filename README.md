@@ -89,7 +89,7 @@ course-brushing-script/
 │   ├── services/
 │   │   ├── videoManager.ts        # 视频播放管理
 │   │   ├── sidebarNavigator.ts    # 侧边栏导航
-│   │   ├── quizExtractor.ts      # 题目提取（参考 XueHua-s/ouchn-learn）
+│   │   ├── quizExtractor.ts      # 题目提取
 │   │   ├── settingsStore.ts       # 配置持久化
 │   │   ├── wakeLock.ts           # 防息屏
 │   │   └── antiDetection.ts       # 防检测
@@ -114,7 +114,6 @@ course-brushing-script/
 - 💾 **刷课统计持久化**：本次刷课数量和持续时间跨页面保持
 - ⏱️ **刷课计时显示**：实时显示本次刷课持续时长
 - 📝 **题型检测重写**：优先识别 `.summary-sub-title` 可见文字，再降级 class 匹配
-- 🔍 **选项提取重写**：参考 XueHua-s/ouchn-learn，支持 `.option`/`.option-content` 结构
 - 🔢 **多小题拆分**：综合题自动拆分为独立子题（parentIndex * 1000 + subIndex 编码）
 - 📋 **答题面板同步修复**：拖拽逻辑与刷课面板保持一致
 

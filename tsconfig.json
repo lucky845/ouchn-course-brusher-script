@@ -14,11 +14,7 @@
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    // 忽略 Vue 相关的警告
-    "ignoreDeprecations": "6.0",
-    // 使用上面的配置隐藏 Vue 相关的警告
-    "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"],
   "references": [{ "path": "./tsconfig.node.json" }]

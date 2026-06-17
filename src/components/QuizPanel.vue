@@ -89,6 +89,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { quizExtractorService } from '../services/quizExtractor'
+import { PanelEdge, type Question } from '../types'
 
 const isOpen = ref(false)
 const isSnapping = ref(false)
@@ -97,7 +98,7 @@ const statusText = ref('点击按钮开始提取题目')
 
 const result = reactive<{
   count: number
-  questions: Array<{ number: number; text: string; type: string; options: string[] }>
+  questions: Question[]
 }>({
   count: 0,
   questions: [],
@@ -115,7 +116,7 @@ const DRAG_THRESHOLD = 5
 let isDraggingFlag = false
 let dragOffset = { x: 0, y: 0 }
 let didDragMove = false
-let snapEdge: 'left' | 'right' = 'right'
+let snapEdge: PanelEdge = PanelEdge.RIGHT
 let resizeHandler: (() => void) | null = null
 
 function log (text: string): void {
@@ -177,7 +178,7 @@ function onDragEnd (): void {
     const ww = window.innerWidth
     const centerX = position.value.x + BTN_WIDTH / 2
     const snapLeft = centerX < ww / 2
-    snapEdge = snapLeft ? 'left' : 'right'
+    snapEdge = snapLeft ? PanelEdge.LEFT : PanelEdge.RIGHT
 
     const bounds = getBounds()
     const targetX = snapLeft ? bounds.minX : bounds.maxX
@@ -207,12 +208,7 @@ async function handleExtract (mode: 'smart' | 'brute' | 'ultra'): Promise<void> 
     const raw = quizExtractorService.extractQuestions(mode)
 
     result.count = raw.questions?.length || 0
-    result.questions = (raw.questions || []).map(q => ({
-      number: q.number,
-      text: q.text,
-      type: q.type,
-      options: q.options || [],
-    }))
+    result.questions = raw.questions || []
 
     if (result.count > 0) {
       statusText.value = `✅ 找到 ${result.count} 道题`
@@ -264,7 +260,7 @@ async function copyResult (): Promise<void> {
 
 onMounted(() => {
   try {
-    snapEdge = 'right'
+    snapEdge = PanelEdge.RIGHT
     const bounds = getBounds()
     position.value = {
       x: bounds.maxX,
@@ -274,7 +270,7 @@ onMounted(() => {
     // 窗口 resize 时重新吸附
     resizeHandler = () => {
       const bounds = getBounds()
-      const targetX = snapEdge === 'left' ? bounds.minX : bounds.maxX
+      const targetX = snapEdge === PanelEdge.LEFT ? bounds.minX : bounds.maxX
       position.value = {
         x: targetX,
         y: clamp(position.value.y, bounds.minY, bounds.maxY),

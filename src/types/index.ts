@@ -1,18 +1,41 @@
-export type SpeedMode = 'normal' | 'fast' | 'stealth'
+export enum SpeedMode {
+  NORMAL = 'normal',
+  FAST = 'fast',
+  STEALTH = 'stealth',
+}
 
-export type QuestionType =
-  | '单选题'
-  | '多选题'
-  | '判断题'
-  | '简答题'
-  | '完形填空'
-  | '匹配题'
-  | '排序题'
-  | '拖放匹配'
-  | '数字题'
-  | '计算题'
-  | '随机题'
-  | '未知题型'
+export enum PanelEdge {
+  LEFT = 'left',
+  RIGHT = 'right',
+  NONE = 'none',
+}
+
+export const PLAYBACK_RATES = {
+  NORMAL: 1,
+  FAST_1_5: 1.5,
+  FAST_2: 2,
+  FAST_3: 3,
+} as const
+
+export type PlaybackRate = typeof PLAYBACK_RATES[keyof typeof PLAYBACK_RATES]
+
+export enum QuestionType {
+  SINGLE_CHOICE = '单选题',
+  MULTIPLE_CHOICE = '多选题',
+  TRUE_FALSE = '判断题',
+  SHORT_ANSWER = '简答题',
+  CLOZE = '完形填空',
+  MATCHING = '匹配题',
+  ORDERING = '排序题',
+  DRAG_DROP = '拖放匹配',
+  NUMERICAL = '数字题',
+  CALCULATION = '计算题',
+  RANDOM = '随机题',
+  UNKNOWN = '未知题型',
+  ESSAY = '论述题',
+  FILL_BLANK = '填空题',
+  COMPREHENSIVE = '综合题',
+}
 
 export interface Question {
   number: number
@@ -40,7 +63,7 @@ export interface SessionStats {
 export interface PanelPosition {
   x: number
   y: number
-  edge?: 'left' | 'right' | 'none'
+  edge?: PanelEdge
 }
 
 export interface ProgressStats {

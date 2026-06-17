@@ -1,6 +1,7 @@
-import type { Settings, SpeedMode } from '../types'
+import type { Settings, PanelEdge } from '../types'
+import { SpeedMode } from '../types'
 
-export type { SpeedMode }
+export { SpeedMode }
 
 const STORAGE_KEY = 'ouchn_brusher_settings_v2'
 const ENABLED_KEY = 'ouchn_brusher_enabled'
@@ -10,16 +11,16 @@ const SESSION_KEY = 'ouchn_brusher_session' // 本次刷课：startTime + itemsD
 const DEFAULT_SETTINGS: Settings = {
   videoCheckInterval: 10000,
   pageWaitTime: 5000,
-  speedMode: 'normal',
+  speedMode: SpeedMode.NORMAL,
   videoPlaybackRate: 1,
   antiDetection: true,
   wakeLock: true,
 }
 
 export const SPEED_MODES: Record<SpeedMode, { videoCheck: number; pageWait: number }> = {
-  normal: { videoCheck: 10000, pageWait: 5000 },
-  fast: { videoCheck: 5000, pageWait: 2000 },
-  stealth: { videoCheck: 30000, pageWait: 15000 },
+  [SpeedMode.NORMAL]: { videoCheck: 10000, pageWait: 5000 },
+  [SpeedMode.FAST]: { videoCheck: 5000, pageWait: 2000 },
+  [SpeedMode.STEALTH]: { videoCheck: 30000, pageWait: 15000 },
 }
 
 export class SettingsStoreService {
@@ -95,16 +96,21 @@ export class SettingsStoreService {
     }
   }
 
-  getPosition(): { x: number; y: number; edge?: string } {
+  getPosition(): { x: number; y: number; edge?: PanelEdge } {
     try {
       const raw = localStorage.getItem(POSITION_KEY)
       if (raw) {
         const parsed = JSON.parse(raw)
         if (parsed && typeof parsed === 'object' && 'x' in parsed && 'y' in parsed) {
+          const edgeValue = parsed.edge
+          const edge: PanelEdge | undefined = 
+            (edgeValue === 'left' || edgeValue === 'right' || edgeValue === 'none') 
+              ? edgeValue as PanelEdge 
+              : undefined
           return {
             x: Number(parsed.x) || 0,
             y: Number(parsed.y) || 0,
-            edge: typeof parsed.edge === 'string' ? parsed.edge : undefined,
+            edge,
           }
         }
       }
