@@ -1,4 +1,4 @@
-import type { Settings, PanelEdge } from '../types'
+import type { Settings, PanelEdge, PanelType } from '../types'
 import { SpeedMode } from '../types'
 
 export { SpeedMode }
@@ -7,6 +7,7 @@ const STORAGE_KEY = 'ouchn_brusher_settings_v2'
 const ENABLED_KEY = 'ouchn_brusher_enabled'
 const POSITION_KEY = 'ouchn_brusher_position'
 const SESSION_KEY = 'ouchn_brusher_session' // 本次刷课：startTime + itemsDone
+const PANEL_POSITIONS_KEY = 'ouchn_panel_positions' // 所有面板位置
 
 const DEFAULT_SETTINGS: Settings = {
   videoCheckInterval: 10000,
@@ -205,6 +206,47 @@ export class SettingsStoreService {
       localStorage.removeItem(SESSION_KEY)
     } catch (e) {
       console.warn('Failed to clear session', e)
+    }
+  }
+
+  // ===== 面板位置存储（支持多个面板独立记忆） =====
+  savePanelPosition(panelType: PanelType, x: number, y: number, edge?: PanelEdge): void {
+    try {
+      const raw = localStorage.getItem(PANEL_POSITIONS_KEY)
+      const positions: Record<string, { x: number; y: number; edge?: PanelEdge }> = raw ? JSON.parse(raw) : {}
+      positions[panelType] = { x, y, edge }
+      localStorage.setItem(PANEL_POSITIONS_KEY, JSON.stringify(positions))
+    } catch (e) {
+      console.warn('Failed to save panel position', e)
+    }
+  }
+
+  getPanelPosition(panelType: PanelType): { x: number; y: number; edge?: PanelEdge } {
+    try {
+      const raw = localStorage.getItem(PANEL_POSITIONS_KEY)
+      if (raw) {
+        const positions = JSON.parse(raw)
+        const pos = positions[panelType]
+        if (pos && typeof pos === 'object' && 'x' in pos && 'y' in pos) {
+          const edgeValue = pos.edge
+          const edge: PanelEdge | undefined = 
+            (edgeValue === 'left' || edgeValue === 'right' || edgeValue === 'none') 
+              ? edgeValue as PanelEdge 
+              : undefined
+          return {
+            x: Number(pos.x) || 0,
+            y: Number(pos.y) || 0,
+            edge,
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to read panel position', e)
+    }
+    // 返回默认位置
+    return {
+      x: typeof window !== 'undefined' ? window.innerWidth - 60 : 100,
+      y: 100,
     }
   }
 }
