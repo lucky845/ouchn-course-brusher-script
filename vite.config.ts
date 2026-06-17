@@ -9,7 +9,7 @@ const USERSCRIPT_HEADER = `// ==UserScript==
 // @homepageURL   https://github.com/lucky845/ouchn-course-brusher-script
 // @source        https://github.com/lucky845/ouchn-course-brusher-script
 // @version       2.0.0
-// @description  国家开放大学实验学院自动刷课脚本 - Vue3 版本，支持题目提取
+// @description  国家开放大学实验学院自动刷课脚本 - Vue3 版本，支持题目提取(github 仓库: https://github.com/lucky845/ouchn-course-brusher-script)
 // @author       lucky845
 // @match        https://moodle.syxy.ouchn.cn/mod/*
 // @grant        unsafeWindow
