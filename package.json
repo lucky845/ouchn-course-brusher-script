@@ -12,7 +12,7 @@
     },
     "devDependencies": {
         "@types/node": "^25.9.3",
-        "@vitejs/plugin-vue": "^5.0.4",
+        "@vitejs/plugin-vue": "^6.0.7",
         "typescript": "^5.4.2",
         "vite": "^8.0.16",
         "path": "0.12.7",
