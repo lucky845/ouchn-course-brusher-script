@@ -89,11 +89,15 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { quizExtractorService } from '../services/quizExtractor'
-import { PanelEdge, type Question } from '../types'
+import { settingsStoreService } from '../services/settingsStore'
+import { PanelType, PanelEdge, type Question } from '../types'
 
 const isOpen = ref(false)
 const isSnapping = ref(false)
-const position = ref({ x: 0, y: 0 })
+
+// 加载保存的位置
+const savedPosition = settingsStoreService.getPanelPosition(PanelType.QUIZ)
+const position = ref({ x: savedPosition.x, y: savedPosition.y })
 const statusText = ref('点击按钮开始提取题目')
 
 const result = reactive<{
@@ -188,6 +192,7 @@ function onDragEnd (): void {
     position.value = { x: targetX, y: targetY }
     window.setTimeout(() => {
       isSnapping.value = false
+      settingsStoreService.savePanelPosition(PanelType.QUIZ, position.value.x, position.value.y, snapEdge)
     }, 280)
   }
   // 注意：不在此处重置 didDragMove，交给 click 事件处理
@@ -260,13 +265,6 @@ async function copyResult (): Promise<void> {
 
 onMounted(() => {
   try {
-    snapEdge = PanelEdge.RIGHT
-    const bounds = getBounds()
-    position.value = {
-      x: bounds.maxX,
-      y: 100,
-    }
-
     // 窗口 resize 时重新吸附
     resizeHandler = () => {
       const bounds = getBounds()

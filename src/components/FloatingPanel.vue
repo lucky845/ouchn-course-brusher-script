@@ -135,7 +135,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { settingsStoreService } from '../services/settingsStore'
-import { SpeedMode, PanelEdge } from '../types'
+import { SpeedMode, PanelType, PanelEdge } from '../types'
 import { videoManagerService } from '../services/videoManager'
 import { wakeLockService } from '../services/wakeLock'
 import { antiDetectionService } from '../services/antiDetection'
@@ -144,7 +144,10 @@ import { sidebarNavigatorService } from '../services/sidebarNavigator'
 // ===== 状态 =====
 const isOpen = ref(false)
 const isRunning = ref(false)
-const position = ref({ x: 0, y: 0 })
+
+// 加载保存的位置
+const savedPosition = settingsStoreService.getPanelPosition(PanelType.FLOATING)
+const position = ref({ x: savedPosition.x, y: savedPosition.y })
 const speedMode = ref<SpeedMode>(SpeedMode.NORMAL)
 const playbackRate = ref(1.5)
 const wakeLockOn = ref(true)
@@ -337,7 +340,7 @@ function onDragEnd (): void {
     // 动画结束后保存位置
     window.setTimeout(() => {
       isSnapping.value = false
-      settingsStoreService.setPosition(position.value.x, position.value.y, snapEdge)
+      settingsStoreService.savePanelPosition(PanelType.FLOATING, position.value.x, position.value.y, snapEdge)
     }, 280)
   }
   // 注意：不要在这里重置 didDragMove，交给 click 事件处理
@@ -710,7 +713,7 @@ let snapEdge: PanelEdge = PanelEdge.RIGHT
 onMounted(() => {
   try {
     // 加载位置 + 决定初始吸附边缘
-    const savedPos = settingsStoreService.getPosition()
+    const savedPos = settingsStoreService.getPanelPosition(PanelType.FLOATING)
     if (savedPos.edge) {
       snapEdge = savedPos.edge
     } else {

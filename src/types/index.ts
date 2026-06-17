@@ -10,6 +10,12 @@ export enum PanelEdge {
   NONE = 'none',
 }
 
+export enum PanelType {
+  FLOATING = 'floating',
+  COURSE = 'course',
+  QUIZ = 'quiz',
+}
+
 export const PLAYBACK_RATES = {
   NORMAL: 1,
   FAST_1_5: 1.5,
