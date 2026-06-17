@@ -139,7 +139,3 @@ MIT License
 ## 作者
 
 [lucky845](https://github.com/lucky845)
-
-## 参考项目
-
-- [XueHua-s/ouchn-learn](https://github.com/XueHua-s/ouchn-learn) - 题目提取逻辑参考
