@@ -1,8 +1,9 @@
 /**
- * 题目提取服务 - 参考 XueHua-s/ouchn-learn 设计
+ * 题目提取服务
  * 兼容 Moodle 和 OUCHN 两种平台的 DOM 结构
  */
-import type { Question, QuestionType, ExtractResult } from '../types'
+import type { Question, ExtractResult } from '../types'
+import { QuestionType } from '../types'
 
 const QUIZ_URL_PATTERN = '/mod/quiz/'
 
@@ -10,25 +11,23 @@ const QUIZ_URL_PATTERN = '/mod/quiz/'
 
 // Moodle 平台
 const MOODLE_SUBJECT_SELECTOR = '.que'
-const MOODLE_OPTION_SELECTOR = '.answer .r0, .answer .r1, .answer .r2, .answer .r3'
-const MOODLE_OPTION_LABEL_SELECTOR = 'label'
 const MOODLE_QTEXT_SELECTOR = '.qtext'
 const MOODLE_TYPE_CLASS_MAP: Array<{ className: string; type: QuestionType }> = [
-  { className: 'truefalse', type: '判断题' },
-  { className: 'multichoiceset', type: '多选题' },
-  { className: 'multichoice', type: '单选题' },
-  { className: 'shortanswer', type: '简答题' },
-  { className: 'essay', type: '论述题' },
-  { className: 'match', type: '匹配题' },
-  { className: 'numerical', type: '数字题' },
-  { className: 'calculated', type: '计算题' },
-  { className: 'cloze', type: '完形填空' },
-  { className: 'gapselect', type: '完形填空' },
-  { className: 'ddwtos', type: '拖放填空' },
-  { className: 'ordering', type: '排序题' },
+  { className: 'truefalse', type: QuestionType.TRUE_FALSE },
+  { className: 'multichoiceset', type: QuestionType.MULTIPLE_CHOICE },
+  { className: 'multichoice', type: QuestionType.SINGLE_CHOICE },
+  { className: 'shortanswer', type: QuestionType.SHORT_ANSWER },
+  { className: 'essay', type: QuestionType.ESSAY },
+  { className: 'match', type: QuestionType.MATCHING },
+  { className: 'numerical', type: QuestionType.NUMERICAL },
+  { className: 'calculated', type: QuestionType.CALCULATION },
+  { className: 'cloze', type: QuestionType.CLOZE },
+  { className: 'gapselect', type: QuestionType.CLOZE },
+  { className: 'ddwtos', type: QuestionType.DRAG_DROP },
+  { className: 'ordering', type: QuestionType.ORDERING },
 ]
 
-// OUCHN 平台（参考 XueHua-s/ouchn-learn）
+// OUCHN 平台
 const OUCHN_SUBJECT_SELECTOR = '.subject'
 const OUCHN_SUB_SUBJECT_SELECTOR = '.sub-subject'
 const OUCHN_ANALYSIS_CLASS = 'analysis'
@@ -40,15 +39,15 @@ const OUCHN_SUMMARY_SELECTOR = '.summary-sub-title'
 
 // 题型文字映射（优先级高于 class）
 const TYPE_TEXT_MAP: Array<{ pattern: RegExp; type: QuestionType }> = [
-  { pattern: /单选题|单选/, type: '单选题' },
-  { pattern: /多选题|多选/, type: '多选题' },
-  { pattern: /判断题|判断|true.*false|是非题/, type: '判断题' },
-  { pattern: /简答题|简答|论述题|论述/, type: '简答题' },
-  { pattern: /填空题|填空/, type: '填空题' },
-  { pattern: /匹配题|匹配/, type: '匹配题' },
-  { pattern: /完形填空|补全对话/, type: '完形填空' },
-  { pattern: /计算题|计算/, type: '计算题' },
-  { pattern: /排序题|排序/, type: '排序题' },
+  { pattern: /单选题|单选/, type: QuestionType.SINGLE_CHOICE },
+  { pattern: /多选题|多选/, type: QuestionType.MULTIPLE_CHOICE },
+  { pattern: /判断题|判断|true.*false|是非题/, type: QuestionType.TRUE_FALSE },
+  { pattern: /简答题|简答|论述题|论述/, type: QuestionType.SHORT_ANSWER },
+  { pattern: /填空题|填空/, type: QuestionType.FILL_BLANK },
+  { pattern: /匹配题|匹配/, type: QuestionType.MATCHING },
+  { pattern: /完形填空|补全对话/, type: QuestionType.CLOZE },
+  { pattern: /计算题|计算/, type: QuestionType.CALCULATION },
+  { pattern: /排序题|排序/, type: QuestionType.ORDERING },
 ]
 
 // 占位符文本（需要过滤）
@@ -113,7 +112,6 @@ function cleanText(raw: string): string {
 
 /**
  * 检测题型 - 优先读取可见文字，再 class 兜底
- * 参考 XueHua-s/ouchn-learn 的 detectQuestionType
  */
 function detectQuestionType(element: Element): QuestionType {
   // 策略1：读取题型可见文字（OUCHN: .summary-sub-title, Moodle: .qtype 或 info 区域）
@@ -142,7 +140,7 @@ function detectQuestionType(element: Element): QuestionType {
 
   // OUCHN: 检测 analysis class（综合题）
   if (classStr.includes(OUCHN_ANALYSIS_CLASS)) {
-    return '综合题'
+    return QuestionType.COMPREHENSIVE
   }
 
   // 策略3：检测输入控件
@@ -156,15 +154,15 @@ function detectQuestionType(element: Element): QuestionType {
   if (hasRadio && !hasCheckbox) {
     // 判断题：只有 2 个选项
     const optionCount = element.querySelectorAll('.option, .answer input[type="radio"]').length
-    if (optionCount === 2) return '判断题'
-    return '单选题'
+    if (optionCount === 2) return QuestionType.TRUE_FALSE
+    return QuestionType.SINGLE_CHOICE
   }
-  if (hasCheckbox) return '多选题'
-  if (hasSelect) return '完形填空'
-  if (hasTextarea) return '论述题'
-  if (hasTextInput || hasContentEditable) return '填空题'
+  if (hasCheckbox) return QuestionType.MULTIPLE_CHOICE
+  if (hasSelect) return QuestionType.CLOZE
+  if (hasTextarea) return QuestionType.ESSAY
+  if (hasTextInput || hasContentEditable) return QuestionType.FILL_BLANK
 
-  return '未知题型'
+  return QuestionType.UNKNOWN
 }
 
 // ============ 选项提取 ============
@@ -334,7 +332,7 @@ function extractTrueFalseOptions(element: Element): string[] {
 
 /**
  * 检测是否是综合题（含子题）
- * 参考 XueHua-s/ouchn-learn 的 hasAnalysisSubQuestions
+ *  XueHua-s/ouchn-learn 的 hasAnalysisSubQuestions
  */
 function hasSubSubjects(element: Element): boolean {
   const classStr = (element.className || '').toString()
@@ -346,7 +344,6 @@ function hasSubSubjects(element: Element): boolean {
 
 /**
  * 提取综合题的子题
- * 参考 XueHua-s/ouchn-learn 的 extractAnalysisSubQuestions
  */
 function extractSubQuestions(parentElement: Element, parentIndex: number): Question[] {
   const questions: Question[] = []
@@ -377,16 +374,21 @@ function extractSubQuestions(parentElement: Element, parentIndex: number): Quest
 
     // 提取选项
     let options: string[] = []
-    if (type === '判断题') {
+    if (type === QuestionType.TRUE_FALSE) {
       options = extractTrueFalseOptions(subEl)
     } else {
       options = extractChoiceOptions(subEl)
     }
 
+    const finalType: QuestionType = 
+      options.length > 0 && type === QuestionType.UNKNOWN 
+        ? QuestionType.SINGLE_CHOICE 
+        : type
+
     questions.push({
       number: parentIndex * 1000 + subIndex, // 参考：parentIndex * SUB_INDEX_MULTIPLIER + subIndex
       text: description,
-      type: options.length > 0 && type === '未知题型' ? '单选题' : type,
+      type: finalType,
       options,
     })
   })
@@ -432,16 +434,21 @@ function buildQuestion(element: Element, index: number): Question | null {
 
     // 提取选项
     let options: string[] = []
-    if (type === '判断题') {
+    if (type === QuestionType.TRUE_FALSE) {
       options = extractTrueFalseOptions(element)
-    } else if (type === '单选题' || type === '多选题' || type === '未知题型') {
+    } else if (type === QuestionType.SINGLE_CHOICE || type === QuestionType.MULTIPLE_CHOICE || type === QuestionType.UNKNOWN) {
       options = extractChoiceOptions(element)
     }
+
+    const finalType: QuestionType = 
+      options.length > 0 && type === QuestionType.UNKNOWN 
+        ? QuestionType.SINGLE_CHOICE 
+        : type
 
     return {
       number: index,
       text,
-      type: options.length > 0 && type === '未知题型' ? '单选题' : type,
+      type: finalType,
       options,
     }
   } catch {

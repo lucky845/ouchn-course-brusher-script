@@ -1,9 +1,11 @@
+import { SpeedMode } from '../types'
+
 export class VideoManagerService {
   private video: HTMLVideoElement | null = null
   private protectedVideos: Map<HTMLVideoElement, number> = new Map()
   private activeIntervals: Set<number> = new Set()
   private onCompleteCallback: (() => void) | null = null
-  private speedMode: string = 'normal'
+  private speedMode: SpeedMode = SpeedMode.NORMAL
   private videoPlaybackRate: number = 1
 
   find(): HTMLVideoElement | null {
@@ -184,7 +186,7 @@ export class VideoManagerService {
       }
 
       try {
-        if (this.speedMode === 'fast' && this.videoPlaybackRate !== 1) {
+        if (this.speedMode === SpeedMode.FAST && this.videoPlaybackRate !== 1) {
           this.setPlaybackRate(this.videoPlaybackRate)
         }
       } catch {
@@ -233,7 +235,7 @@ export class VideoManagerService {
     return this.video
   }
 
-  setPlaybackSettings(speedMode: string, playbackRate: number): void {
+  setPlaybackSettings(speedMode: SpeedMode, playbackRate: number): void {
     try {
       this.speedMode = speedMode
       this.videoPlaybackRate = playbackRate

@@ -60,7 +60,7 @@
         </div>
 
         <!-- 播放速率 (仅快速模式) -->
-        <div v-if="speedMode === 'fast'" class="section-card">
+        <div v-if="speedMode === SpeedMode.FAST" class="section-card">
           <div class="section-title">🎬 播放速率</div>
           <div class="seg-group">
             <button
@@ -110,7 +110,7 @@
           <button
             class="action-btn start"
             :disabled="isRunning"
-            @click="startBrushing"
+            @click="() => startBrushing()"
           >▶ 开始</button>
           <button
             class="action-btn stop"
@@ -134,7 +134,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import { settingsStoreService, type SpeedMode } from '../services/settingsStore'
+import { settingsStoreService } from '../services/settingsStore'
+import { SpeedMode, PanelEdge } from '../types'
 import { videoManagerService } from '../services/videoManager'
 import { wakeLockService } from '../services/wakeLock'
 import { antiDetectionService } from '../services/antiDetection'
@@ -142,10 +143,9 @@ import { sidebarNavigatorService } from '../services/sidebarNavigator'
 
 // ===== 状态 =====
 const isOpen = ref(false)
-const isDragging = ref(false)
 const isRunning = ref(false)
 const position = ref({ x: 0, y: 0 })
-const speedMode = ref<SpeedMode>('normal')
+const speedMode = ref<SpeedMode>(SpeedMode.NORMAL)
 const playbackRate = ref(1.5)
 const wakeLockOn = ref(true)
 const antiDetectionOn = ref(true)
@@ -176,9 +176,9 @@ let timeTimer: number | null = null // 刷新"本次刷课时间"显示
 
 // ===== 选项 =====
 const speedModeOptions = [
-  { value: 'normal' as SpeedMode, label: '🐢 正常' },
-  { value: 'fast' as SpeedMode, label: '🚀 快速' },
-  { value: 'stealth' as SpeedMode, label: '🥷 低调' },
+  { value: SpeedMode.NORMAL, label: '🐢 正常' },
+  { value: SpeedMode.FAST, label: '🚀 快速' },
+  { value: SpeedMode.STEALTH, label: '🥷 低调' },
 ]
 const playbackRateOptions = [1, 1.5, 2, 3]
 
@@ -324,7 +324,7 @@ function onDragEnd (): void {
     const ww = window.innerWidth
     const centerX = position.value.x + BTN_WIDTH / 2
     const snapLeft = centerX < ww / 2
-    snapEdge = snapLeft ? 'left' : 'right'
+    snapEdge = snapLeft ? PanelEdge.LEFT : PanelEdge.RIGHT
 
     const bounds = getBounds()
     const targetX = snapLeft ? bounds.minX : bounds.maxX
@@ -360,7 +360,7 @@ function changeSpeedMode (mode: SpeedMode): void {
   log(`切换速度模式: ${mode} (页面等待 ${config.pageWaitTime}ms)`)
 
   // 如果视频存在，应用播放速率
-  if (speedMode.value === 'fast') {
+  if (speedMode.value === SpeedMode.FAST) {
     const v = videoManagerService.find()
     if (v) {
       videoManagerService.setPlaybackRate(playbackRate.value)
@@ -531,7 +531,7 @@ function processCurrentPage (): void {
       log(`→ 检测到视频，准备播放 (duration=${Math.round(video.duration || 0)}s)`)
       currentAction.value = '播放视频'
 
-      if (speedMode.value === 'fast') {
+      if (speedMode.value === SpeedMode.FAST) {
         videoManagerService.setPlaybackRate(playbackRate.value)
       }
 
@@ -705,23 +705,7 @@ function goToNextItem (): void {
 
 // ===== 生命周期 =====
 let resizeHandler: (() => void) | null = null
-let snapEdge: 'left' | 'right' = 'right'
-
-function snapToEdge (animate: boolean = true): void {
-  const bounds = getBounds()
-  const targetX = snapEdge === 'left' ? bounds.minX : bounds.maxX
-  const targetY = clamp(position.value.y, bounds.minY, bounds.maxY)
-
-  if (animate) {
-    isSnapping.value = true
-    position.value = { x: targetX, y: targetY }
-    window.setTimeout(() => {
-      isSnapping.value = false
-    }, 280)
-  } else {
-    position.value = { x: targetX, y: targetY }
-  }
-}
+let snapEdge: PanelEdge = PanelEdge.RIGHT
 
 onMounted(() => {
   try {
@@ -732,7 +716,7 @@ onMounted(() => {
     } else {
       // 若无记录，根据当前位置判断
       const centerX = savedPos.x + BTN_WIDTH / 2
-      snapEdge = centerX < window.innerWidth / 2 ? 'left' : 'right'
+      snapEdge = centerX < window.innerWidth / 2 ? PanelEdge.LEFT : PanelEdge.RIGHT
     }
     position.value = { x: savedPos.x, y: savedPos.y }
 
@@ -760,7 +744,7 @@ onMounted(() => {
     resizeHandler = () => {
       const bounds = getBounds()
       // 保持当前吸附边缘
-      const targetX = snapEdge === 'left' ? bounds.minX : bounds.maxX
+      const targetX = snapEdge === PanelEdge.LEFT ? bounds.minX : bounds.maxX
       position.value = {
         x: targetX,
         y: clamp(position.value.y, bounds.minY, bounds.maxY),
