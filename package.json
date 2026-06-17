@@ -14,7 +14,7 @@
         "@types/node": "^25.9.3",
         "@vitejs/plugin-vue": "^5.0.4",
         "typescript": "^5.4.2",
-        "vite": "^5.1.6",
+        "vite": "^8.0.16",
         "path": "0.12.7",
         "node-fs": "0.1.7"
     }
