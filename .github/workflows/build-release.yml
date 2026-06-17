@@ -55,6 +55,7 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4
@@ -62,8 +63,21 @@ jobs:
           name: dist-${{ github.run_id }}
           path: dist/
 
+      - name: Generate changelog from merged commits
+        id: changelog
+        run: |
+          # 获取当前 tag 对应的 commit，然后获取 main 分支在这个 commit 之后的 commits
+          # 这些就是本次 release 包含的所有 commits
+          LOG=$(git log --pretty=format:"- %s" origin/main..HEAD 2>/dev/null || \
+                git log --pretty=format:"- %s" main..HEAD 2>/dev/null || \
+                git log --pretty=format:"- %s" -20)
+          # 清理特殊字符
+          LOG=$(echo "$LOG" | sed 's/"/\\"/g' | sed 's/\r//g')
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$LOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create Release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           body: |
@@ -72,24 +86,13 @@ jobs:
             Vue3 版本，支持题目提取、刷课自动化。
 
             ### 更新内容
-            请查看 [CHANGELOG](https://github.com/${{ github.repository }}/releases)
+
+            ${{ steps.changelog.outputs.changelog }}
 
             ### 安装
-            直接安装 `ouchn-course-brusher-vue.user.js` 文件即可
+            直接下载并安装 `ouchn-course-brusher-vue.user.js` 文件即可
           files: dist/ouchn-course-brusher-vue.user.js
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload to Release Asset (manual dispatch)
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          echo "Manual trigger - version: ${{ needs.build.outputs.version }}"
-          # 创建 release 草稿
-          VER="${{ needs.build.outputs.version }}"
-          if [ -n "$VER" ]; then
-            # 上传文件到 release（如果没有 tag）
-            echo "Version: $VER"
-            echo "请手动创建 Release 或推送 tag v$VER 触发自动发布"
-          fi
