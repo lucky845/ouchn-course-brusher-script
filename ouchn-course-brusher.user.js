@@ -3,7 +3,7 @@
 // @namespace    https://github.com/lucky845/ouchn-course-brusher-script
 // @downloadURL  https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher.user.js
 // @updateURL    https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher.user.js
-// @version      1.7.2
+// @version      1.7.3
 // @description  这是一个自动刷完学习项目的脚本，适用于国家开放大学实验学院的 Moodle 平台。（个人自用）
 // @author       lucky845
 // @match        https://moodle.syxy.ouchn.cn/mod/*
@@ -431,6 +431,7 @@
                     }
 
                     // 确定题目类型 - 更全面的识别
+                    // 优先通过 class 识别（Moodle 标准题型）
                     if (qElement.classList.contains('multichoice')) {
                         question.type = '单选题';
                     } else if (qElement.classList.contains('truefalse')) {
@@ -447,12 +448,59 @@
                         question.type = '数字题';
                     } else if (qElement.classList.contains('calculated')) {
                         question.type = '计算题';
+                    } else if (qElement.classList.contains('cloze') || qElement.classList.contains('gapselect')) {
+                        // 完形填空 / 补全对话题
+                        question.type = '完形填空';
+                    } else if (qElement.classList.contains('ddwtos') || qElement.classList.contains('drag')) {
+                        // 拖放匹配题
+                        question.type = '拖放匹配';
+                    } else if (qElement.classList.contains('order') || qElement.classList.contains('ordering')) {
+                        // 排序题
+                        question.type = '排序题';
+                    } else if (qElement.classList.contains('essay')) {
+                        question.type = '论述题';
+                    } else if (qElement.classList.contains('randomssa') || qElement.classList.contains('random')) {
+                        // 随机题
+                        question.type = '随机题';
                     } else {
                         // 尝试通过选项结构判断
                         const hasRadio = qElement.querySelector('input[type="radio"]');
                         const hasCheckbox = qElement.querySelector('input[type="checkbox"]');
-                        if (hasRadio) question.type = '单选题';
-                        else if (hasCheckbox) question.type = '多选题';
+                        const hasSelect = qElement.querySelector('select');
+                        const hasTextarea = qElement.querySelector('textarea');
+                        const hasContentEditable = qElement.querySelector('[contenteditable="true"]');
+
+                        if (hasRadio) {
+                            const optionCount = qElement.querySelectorAll('.r0, .r1, .option').length;
+                            question.type = optionCount === 2 ? '判断题' : '单选题';
+                        } else if (hasCheckbox) {
+                            question.type = '多选题';
+                        } else if (hasSelect) {
+                            question.type = '完形填空';
+                        } else if (hasTextarea || hasContentEditable) {
+                            question.type = '简答题';
+                        }
+                    }
+
+                    // 特殊题型：尝试通过题型文字识别
+                    if (question.type === '未知题型') {
+                        const typeText = qElement.querySelector('.qtype')?.textContent?.trim() || '';
+                        const headerText = qElement.querySelector('.card-header, .question-header')?.textContent?.trim() || '';
+                        const allText = (typeText + headerText).toLowerCase();
+
+                        if (/单选题|单选/.test(allText)) {
+                            question.type = '单选题';
+                        } else if (/多选题|多选/.test(allText)) {
+                            question.type = '多选题';
+                        } else if (/判断题|判断/.test(allText)) {
+                            question.type = '判断题';
+                        } else if (/填空|完形|gap/.test(allText)) {
+                            question.type = '完形填空';
+                        } else if (/匹配|配对/.test(allText)) {
+                            question.type = '匹配题';
+                        } else if (/简答|论述|问答/.test(allText)) {
+                            question.type = '简答题';
+                        }
                     }
 
                     // 提取选项 - 先获取 answerDiv
@@ -486,8 +534,96 @@
                         }
                     }
 
-                    // 其他题型提取选项 - 改进的方法
-                    if (answerDiv && question.type !== '匹配题') {
+                    // 完形填空题（cloze/gapselect）专用提取逻辑
+                    if ((question.type === '完形填空') && answerDiv) {
+                        // 完形填空题：题干中有下拉选择框，选项在 select 的 option 中
+                        const selectElements = answerDiv.querySelectorAll('select');
+                        if (selectElements.length > 0) {
+                            selectElements.forEach((select, idx) => {
+                                const options = select.querySelectorAll('option');
+                                if (options.length > 0) {
+                                    const optTexts = [];
+                                    options.forEach(opt => {
+                                        const text = opt.textContent?.trim() || '';
+                                        // 跳过空选项和"请选择"等占位选项
+                                        if (text && text !== '请选择' && !/select.*option/i.test(text)) {
+                                            optTexts.push(text);
+                                        }
+                                    });
+                                    if (optTexts.length > 0) {
+                                        question.options.push(`空${idx + 1}: ${optTexts.join(' | ')}`);
+                                    }
+                                }
+                            });
+                        }
+                        // 如果没有 select，尝试查找其他选项元素
+                        if (question.options.length === 0) {
+                            const allOptions = answerDiv.querySelectorAll('.option, .choice, div[class*="option"]');
+                            const seen = new Set();
+                            allOptions.forEach(el => {
+                                const optText = el.innerText?.trim() || el.textContent?.trim() || '';
+                                if (optText && optText.length > 0 && !seen.has(optText)) {
+                                    seen.add(optText);
+                                    question.options.push(optText);
+                                }
+                            });
+                        }
+                    }
+
+                    // 排序题专用提取逻辑
+                    if (question.type === '排序题' && answerDiv) {
+                        // 排序题：提取可排序的选项列表
+                        const orderItems = answerDiv.querySelectorAll('.orderlabel, .排序项, .item, .dragitem');
+                        if (orderItems.length > 0) {
+                            orderItems.forEach((item, idx) => {
+                                const optText = item.innerText?.trim() || item.textContent?.trim() || '';
+                                if (optText) {
+                                    question.options.push(`${idx + 1}. ${optText}`);
+                                }
+                            });
+                        }
+                        // 备选：查找所有选项
+                        if (question.options.length === 0) {
+                            const allOptions = answerDiv.querySelectorAll('.option, .choice, li, .dragitem');
+                            const seen = new Set();
+                            allOptions.forEach(el => {
+                                const optText = el.innerText?.trim() || el.textContent?.trim() || '';
+                                if (optText && optText.length > 0 && !seen.has(optText)) {
+                                    seen.add(optText);
+                                    question.options.push(optText);
+                                }
+                            });
+                        }
+                    }
+
+                    // 拖放匹配题专用提取逻辑
+                    if (question.type === '拖放匹配' && answerDiv) {
+                        // 查找可拖拽的选项
+                        const draggables = answerDiv.querySelectorAll('.drag, .draggable, .dragitem, [draggable="true"]');
+                        const seen = new Set();
+                        draggables.forEach(el => {
+                            const optText = el.innerText?.trim() || el.textContent?.trim() || '';
+                            if (optText && optText.length > 0 && !seen.has(optText)) {
+                                seen.add(optText);
+                                question.options.push(optText);
+                            }
+                        });
+                        // 备选：查找所有选项
+                        if (question.options.length === 0) {
+                            const allOptions = answerDiv.querySelectorAll('.option, .choice, div');
+                            allOptions.forEach(el => {
+                                const optText = el.innerText?.trim() || el.textContent?.trim() || '';
+                                if (optText && optText.length > 2 && !seen.has(optText)) {
+                                    seen.add(optText);
+                                    question.options.push(optText);
+                                }
+                            });
+                        }
+                    }
+
+                    // 其他题型提取选项 - 改进的方法（排除已使用专用提取的题型）
+                    const hasSpecialExtract = ['匹配题', '完形填空', '排序题', '拖放匹配'].includes(question.type);
+                    if (answerDiv && !hasSpecialExtract) {
                         // 方法1: 查找所有选项行
                         const optionRows = answerDiv.querySelectorAll('.r0, .r1, .answer > div');
                         optionRows.forEach((optRow, optIndex) => {
