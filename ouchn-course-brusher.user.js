@@ -3,7 +3,7 @@
 // @namespace    https://github.com/lucky845/ouchn-course-brusher-script
 // @downloadURL  https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher.user.js
 // @updateURL    https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher.user.js
-// @version      1.7.1
+// @version      1.7.2
 // @description  这是一个自动刷完学习项目的脚本，适用于国家开放大学实验学院的 Moodle 平台。（个人自用）
 // @author       lucky845
 // @match        https://moodle.syxy.ouchn.cn/mod/*
@@ -320,14 +320,84 @@
             }, false);
         },
 
+        cleanQuestionText(rawText) {
+            if (!rawText) return '';
+            let text = rawText;
+
+            // 移除 Moodle 系统标签
+            text = text.replace(/试题\s*\d+\s*\n?/g, '');
+            text = text.replace(/试题编号\s*\d+\s*\n?/g, '');
+            text = text.replace(/试题正文/g, '');
+            text = text.replace(/还未作答/g, '');
+            text = text.replace(/满分\d+\.?\d*\s*分?/g, '');
+            text = text.replace(/满分\d+\.?\d*点?/g, '');
+            text = text.replace(/标记试题/g, '');
+            text = text.replace(/保存/g, '');
+            text = text.replace(/清空我的选择/g, '');
+            text = text.replace(/答题状态.*?\n/g, '');
+            text = text.replace(/状态.*?\n/g, '');
+            text = text.replace(/\|\s*标记为题目/g, '');
+            text = text.replace(/◆\s*标记为题目/g, '');
+            text = text.replace(/标记为题目/g, '');
+            text = text.replace(/回答/g, '');
+
+            // 按行处理：清理每行空白
+            let lines = text.split('\n').map(line => line.trim());
+
+            // 过滤掉仅包含单个选项字母的行（如 "A"、"B"、"C"），避免选项字母重复显示
+            lines = lines.filter(line => {
+                // 仅当行完全就是一个字母（A-D，不区分大小写）才过滤
+                return !/^[A-Da-d]$/.test(line);
+            });
+
+            text = lines.join('\n');
+
+            // 清理多余空行
+            text = text.replace(/\n{3,}/g, '\n\n');
+
+            // 移除开头的空行和仅含标点的行
+            text = text.replace(/^\s*\n+/, '');
+
+            return text.trim();
+        },
+
+        isRealQuestion(qElement) {
+            if (!qElement) return false;
+            // 判断是否为真正的题目（非信息文本/描述）
+            // 1. 检查是否有答题区域
+            const hasAnswer = qElement.querySelector('.answer');
+            if (hasAnswer) return true;
+            // 2. 检查是否有输入元素
+            const hasInput = qElement.querySelector('input[type="radio"], input[type="checkbox"], input[type="text"], textarea, select');
+            if (hasInput) return true;
+            // 3. 检查 class 是否为题目类型（排除 description）
+            const isDescriptionType = qElement.classList.contains('description');
+            if (isDescriptionType) return false;
+            // 4. 检查是否有题目编号
+            const hasQno = qElement.querySelector('.qno');
+            const answerDiv = qElement.querySelector('.answer');
+            if (hasQno && answerDiv) return true;
+            // 5. 检查文本是否像题目（包含输入区域）
+            const hasFormElement = qElement.querySelector('form, .ablock');
+            if (hasFormElement && qElement.querySelector('.answer')) return true;
+            return false;
+        },
+
         extractQuestions() {
             return safeCall(() => {
                 const questions = [];
                 const questionElements = document.querySelectorAll('.que');
+                let realIndex = 0;
 
-                questionElements.forEach((qElement, index) => {
+                questionElements.forEach((qElement) => {
+                    // 过滤非真正题目（如"信息文本"、"题型说明"等）
+                    if (!QuizExtractor.isRealQuestion(qElement)) {
+                        return;
+                    }
+
+                    realIndex++;
                     const question = {
-                        number: index + 1,
+                        number: realIndex,
                         text: '',
                         type: '未知题型',
                         options: [],
@@ -345,10 +415,19 @@
                         if (!isNaN(parsed)) question.number = parsed;
                     }
 
-                    // 提取题目文本
+                    // 提取题目文本 - 同时尝试 qtext 和其他可能位置
                     const qTextEl = qElement.querySelector('.qtext');
                     if (qTextEl) {
-                        question.text = qTextEl.innerText?.trim() || qTextEl.textContent?.trim() || '';
+                        const raw = qTextEl.innerText?.trim() || qTextEl.textContent?.trim() || '';
+                        question.text = QuizExtractor.cleanQuestionText(raw);
+                    }
+                    // 如果 qtext 为空，尝试提取整个题干区域
+                    if (!question.text) {
+                        const formulation = qElement.querySelector('.formulation');
+                        if (formulation) {
+                            const raw = formulation.innerText?.trim() || formulation.textContent?.trim() || '';
+                            question.text = QuizExtractor.cleanQuestionText(raw);
+                        }
                     }
 
                     // 确定题目类型 - 更全面的识别
@@ -376,9 +455,39 @@
                         else if (hasCheckbox) question.type = '多选题';
                     }
 
-                    // 提取选项 - 改进的方法
+                    // 提取选项 - 先获取 answerDiv
                     const answerDiv = qElement.querySelector('.answer');
-                    if (answerDiv) {
+
+                    // 匹配题（拖放题）专用提取逻辑
+                    if (question.type === '匹配题' && answerDiv) {
+                        // 匹配题结构：左侧标签、中间拖放区、右侧选项
+                        // 查找右侧选项区域（.matchright 或 .potentialmatches）
+                        const matchRight = answerDiv.querySelector('.matchright, .potentialmatches, .match-score');
+                        if (matchRight) {
+                            const optionElements = matchRight.querySelectorAll('div, span, .matchoption, .matchanswer');
+                            optionElements.forEach(el => {
+                                const optText = el.innerText?.trim() || el.textContent?.trim() || '';
+                                if (optText && optText.length > 0 && !/将答案拖放至此/.test(optText)) {
+                                    question.options.push(optText);
+                                }
+                            });
+                        }
+                        // 如果没找到右侧选项，尝试查找所有潜在选项
+                        if (question.options.length === 0) {
+                            const allOptions = answerDiv.querySelectorAll('.matchoption, .text, span:not([class]), div:not([class])');
+                            const seen = new Set();
+                            allOptions.forEach(el => {
+                                const optText = el.innerText?.trim() || el.textContent?.trim() || '';
+                                if (optText && optText.length > 2 && !/将答案拖放至此/.test(optText) && !seen.has(optText)) {
+                                    seen.add(optText);
+                                    question.options.push(optText);
+                                }
+                            });
+                        }
+                    }
+
+                    // 其他题型提取选项 - 改进的方法
+                    if (answerDiv && question.type !== '匹配题') {
                         // 方法1: 查找所有选项行
                         const optionRows = answerDiv.querySelectorAll('.r0, .r1, .answer > div');
                         optionRows.forEach((optRow, optIndex) => {
@@ -393,8 +502,11 @@
 
                             if (optText && optText.length > 0) {
                                 // 清理选项文本，移除多余内容
-                                optText = optText.replace(/^[A-Za-z0-9][.、)\]]?\s*/, '');
-                                question.options.push(optText);
+                                optText = optText.replace(/^[A-Za-z0-9][.、)\]]?\s*/, '').trim();
+                                // 防御性过滤：跳过仅为单个字母的空选项（Moodle界面占位符）
+                                if (optText && !/^[A-Da-d]$/.test(optText)) {
+                                    question.options.push(optText);
+                                }
                             }
 
                             // 检查是否选中
@@ -410,8 +522,11 @@
                             allLabels.forEach(label => {
                                 const optText = label.innerText?.trim() || label.textContent?.trim() || '';
                                 if (optText && optText.length > 0) {
-                                    const cleaned = optText.replace(/^[A-Za-z0-9][.、)\]]?\s*/, '');
-                                    question.options.push(cleaned);
+                                    const cleaned = optText.replace(/^[A-Za-z0-9][.、)\]]?\s*/, '').trim();
+                                    // 防御性过滤：跳过仅为单个字母的空选项
+                                    if (cleaned && !/^[A-Da-d]$/.test(cleaned)) {
+                                        question.options.push(cleaned);
+                                    }
                                 }
                             });
                         }
@@ -422,8 +537,8 @@
                         question.options.push('正确', '错误');
                     }
 
-                    // 如果有题目文本，就保存
-                    if (question.text) {
+                    // 只要有题干或选项内容，就保存（放宽条件，避免漏掉最后一题）
+                    if (question.text || question.options.length > 0) {
                         questions.push(question);
                     }
                 });
@@ -1076,9 +1191,15 @@
                 safeCall(async () => {
                     // 暴力提取所有题目内容
                     let allText = '';
-                    const questions = document.querySelectorAll('.que');
-                    questions.forEach((q, i) => {
-                        allText += `=== 第 ${i + 1} 题 ===\n`;
+                    const questionElements = document.querySelectorAll('.que');
+                    let realIndex = 0;
+                    questionElements.forEach((q) => {
+                        // 过滤非真正题目
+                        if (!QuizExtractor.isRealQuestion(q)) {
+                            return;
+                        }
+                        realIndex++;
+                        allText += `=== 第 ${realIndex} 题 ===\n`;
                         const text = q.innerText || q.textContent || '';
                         // 清理格式
                         const cleaned = text.replace(/\n\s*\n\s*\n/g, '\n\n').trim();
@@ -1087,7 +1208,7 @@
                     });
                     if (allText) {
                         await QuizExtractor.copyToClipboard(allText);
-                        status.textContent = `✅ 已暴力提取 ${questions.length} 题`;
+                        status.textContent = `✅ 已暴力提取 ${realIndex} 题`;
                     }
                 });
             };
@@ -1106,15 +1227,33 @@
             superExtractBtn.onclick = async () => {
                 safeCall(async () => {
                     let result = '';
-                    const questions = document.querySelectorAll('.que');
+                    const questionElements = document.querySelectorAll('.que');
+                    let realIndex = 0;
                     
-                    questions.forEach((q, qIndex) => {
-                        result += `【第 ${qIndex + 1} 题】\n`;
+                    questionElements.forEach((q) => {
+                        // 过滤非真正题目
+                        if (!QuizExtractor.isRealQuestion(q)) {
+                            return;
+                        }
+                        realIndex++;
+                        result += `【第 ${realIndex} 题】\n`;
                         
-                        // 提取题干
+                        // 提取题干 - 先尝试 qtext，再尝试整个 formulation
+                        let questionText = '';
                         const qtext = q.querySelector('.qtext');
                         if (qtext) {
-                            result += qtext.innerText?.trim() || qtext.textContent?.trim() || '';
+                            const raw = qtext.innerText?.trim() || qtext.textContent?.trim() || '';
+                            questionText = QuizExtractor.cleanQuestionText(raw);
+                        }
+                        if (!questionText) {
+                            const formulation = q.querySelector('.formulation');
+                            if (formulation) {
+                                const raw = formulation.innerText?.trim() || formulation.textContent?.trim() || '';
+                                questionText = QuizExtractor.cleanQuestionText(raw);
+                            }
+                        }
+                        if (questionText) {
+                            result += questionText;
                             result += '\n';
                         }
                         
@@ -1134,7 +1273,10 @@
                                 found.forEach(el => {
                                     const text = el.innerText?.trim() || el.textContent?.trim();
                                     if (text && text.length > 0 && !options.includes(text)) {
-                                        options.push(text);
+                                        // 过滤掉仅为单个字母的选项占位符
+                                        if (!/^[A-Da-d]$/.test(text)) {
+                                            options.push(text);
+                                        }
                                     }
                                 });
                                 if (options.length > 0) break;
@@ -1156,7 +1298,7 @@
                     
                     if (result) {
                         await QuizExtractor.copyToClipboard(result);
-                        status.textContent = `⚡ 超强提取 ${questions.length} 题`;
+                        status.textContent = `⚡ 超强提取 ${realIndex} 题`;
                     }
                 });
             };
