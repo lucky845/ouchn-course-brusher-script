@@ -10,7 +10,7 @@
 - 自动刷课（视频播放控制、进度追踪、防检测）
 - 课程管理（多学期展示、进度统计、快捷导航）
 - 答题助手（题目提取、题型识别、一键复制）
-- **课程详情页助手**（v2.2.0 新增）：章节导航、进度概览、活动管理
+- **课程详情页助手**（v2.2.0 新增）：章节导航、进度概览、书签、搜索、提醒、跨面板联动
 
 **版本**：v2.2.0
 **构建产物**：`dist/ouchn-course-brusher-vue.user.js`
@@ -43,6 +43,9 @@ src/
 │   ├── homeNavigator.ts     # 首页课程管理导航
 │   ├── courseNavigator.ts   # 课程详情页导航（v2.2.0）
 │   ├── courseProgressStore.ts # 课程刷课进度共享状态（v2.2.0）
+│   ├── courseBookmarkStore.ts # 课程书签存储（v2.2.0）
+│   ├── contentSearch.ts     # 内容搜索服务（v2.2.0）
+│   ├── studyReminder.ts     # 学习提醒服务（v2.2.0）
 │   ├── quizExtractor.ts     # 题目提取
 │   ├── settingsStore.ts     # 配置持久化
 │   ├── progressStats.ts     # 进度统计
@@ -175,9 +178,12 @@ npx vue-tsc --noEmit
 PANEL_CONFIG_MAP: {
   floating: { width: 56, height: 56, margin: 10, dragThreshold: 5 },
   quiz: { width: 56, height: 56, margin: 10, dragThreshold: 5 },
-  course: { width: 44, height: 44, margin: 10, dragThreshold: 5 },
+  course: { width: 44, height: 44, margin: 20, dragThreshold: 5 },
+  mod: { width: 56, height: 56, margin: 20, dragThreshold: 5 },
 }
 ```
+
+> **注意**：course 和 mod 面板使用较大的 margin（20px）是为了确保徽章（badge）能完整显示，不会溢出屏幕边缘。
 
 ### [src/utils/url.ts](src/utils/url.ts)
 
@@ -219,17 +225,47 @@ URL 工具函数：
 - `stopBrushing()` - 停止刷课
 - `syncFromCourseInfo()` - 从课程详情页同步进度
 - `subscribe()` - 订阅进度变化通知
+- `checkCourseCompleted()` - 检查课程是否全部完成
 - 使用 localStorage 持久化，支持跨面板共享刷课状态
+
+### [src/services/courseBookmarkStore.ts](src/services/courseBookmarkStore.ts)（v2.2.0）
+
+课程书签存储服务：
+- `addBookmark()` - 添加书签
+- `removeBookmark()` - 删除书签
+- `getAll()` - 获取所有书签
+- `clear()` - 清空书签
+
+### [src/services/contentSearch.ts](src/services/contentSearch.ts)（v2.2.0）
+
+内容搜索服务：
+- `search()` - 在课程内容中搜索关键词
+- `highlightMatches()` - 高亮匹配结果
+
+### [src/services/studyReminder.ts](src/services/studyReminder.ts)（v2.2.0）
+
+学习提醒服务：
+- `addReminder()` - 添加提醒（每日/每周/截止日期）
+- `removeReminder()` - 删除提醒
+- `getAll()` - 获取所有提醒
+- `checkReminders()` - 检查到期提醒
+- `cleanExpiredReminders()` - 清理过期提醒
+- `addNotification()` - 添加通知
+- `getNotifications()` - 获取所有通知
+- 使用 localStorage 持久化，支持 TTL 过期清理
 
 ### [src/components/CoursePanel.vue](src/components/CoursePanel.vue)（v2.2.0）
 
 课程详情页助手面板：
-- 进度概览（已完成/未完成章节统计）
-- 章节导航（可折叠展开）
-- 活动列表（点击跳转）
-- 快捷操作（展开/折叠/刷新）
+- **标签页设计**：章节导航、书签、搜索、提醒四大功能模块
+- **进度概览**：已完成/未完成章节统计，课程完成状态显示
+- **章节导航**：可折叠展开的章节列表，点击跳转
+- **活动列表**：显示章节下的所有活动项，支持点击跳转
+- **快捷操作**：展开全部/折叠全部/刷新按钮（互斥选中状态）
 - **刷课进度显示**：订阅刷课面板的进度，实时显示当前刷课状态
 - **跨面板联动**：刷课时自动同步进度到课程详情页面板
+- **学习提醒**：支持添加每日/每周/截止日期提醒
+- **课程完成提示**：所有活动完成时显示庆祝动画
 
 ## 已知问题与解决方案
 

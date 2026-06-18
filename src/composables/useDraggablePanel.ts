@@ -53,9 +53,17 @@ export function useDraggablePanel (
   // === 位置初始化 ===
   const saved = settingsStoreService.getPanelPosition(panelType, btnWidth, margin)
   let snapEdge: PanelEdge = saved.edge
+  
+  // 安全检查：确保位置值有效
+  const hasWindow = typeof window !== 'undefined'
+  const defaultX = hasWindow 
+    ? (saved.edge === PanelEdge.LEFT ? margin : window.innerWidth - btnWidth - margin)
+    : 100
+  const defaultY = Math.max(50, Math.min(saved.y, hasWindow ? window.innerHeight - btnHeight - margin : 500))
+  
   const position = ref({
-    x: snapEdge === PanelEdge.LEFT ? margin : window.innerWidth - btnWidth - margin,
-    y: saved.y,
+    x: typeof saved.x === 'number' && !isNaN(saved.x) ? saved.x : defaultX,
+    y: typeof saved.y === 'number' && !isNaN(saved.y) ? saved.y : defaultY,
   })
 
   // === 拖拽状态 ===

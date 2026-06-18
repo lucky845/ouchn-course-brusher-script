@@ -160,23 +160,43 @@ export class SettingsStoreService {
     btnWidth: number = 56,
     margin: number = 10,
   ): { x: number; y: number; edge: PanelEdge } {
+    // 安全检查：确保 window 对象存在
+    const hasWindow = typeof window !== 'undefined'
+    
+    // 从存储读取位置
     const positions = readStorageRecord<unknown>(PANEL_POSITIONS_KEY)
     const pos = positions[panelType]
+    
+    // 如果有有效的存储位置，使用存储的值
     if (isValidPanelPos(pos)) {
       const edge: PanelEdge = pos.edge === PanelEdge.NONE ? PanelEdge.RIGHT : pos.edge
       const y = Number(pos.y) || 100
-      const x =
-        typeof window !== 'undefined'
-          ? edge === PanelEdge.LEFT
-            ? margin
-            : window.innerWidth - btnWidth - margin
-          : 100
-      return { x, y, edge }
+      
+      // 计算 X 坐标
+      let x: number
+      if (hasWindow) {
+        const maxX = window.innerWidth - btnWidth - margin
+        x = edge === PanelEdge.LEFT ? margin : Math.max(margin, maxX)
+      } else {
+        x = 100
+      }
+      
+      // 确保 Y 在可视范围内
+      const maxY = hasWindow ? window.innerHeight - btnWidth - margin : 500
+      const clampedY = Math.max(margin, Math.min(y, maxY))
+      
+      return { x, y: clampedY, edge }
     }
-    // 默认位置：右侧贴边
+    
+    // 默认位置：右侧贴边，垂直居中偏上
+    const defaultY = 100
+    const defaultX = hasWindow 
+      ? Math.max(margin, window.innerWidth - btnWidth - margin)
+      : 100
+    
     return {
-      x: typeof window !== 'undefined' ? window.innerWidth - btnWidth - margin : 100,
-      y: 100,
+      x: defaultX,
+      y: defaultY,
       edge: PanelEdge.RIGHT,
     }
   }

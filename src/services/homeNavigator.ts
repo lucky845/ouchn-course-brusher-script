@@ -11,7 +11,6 @@ export class HomeNavigatorService {
     try {
       // 根据实际 DOM 结构：学期使用 .card，课程使用 .card-body
       const semesterCards = document.querySelectorAll('.card')
-      console.log('[HomeNavigator] 找到 .card 元素:', semesterCards.length)
       
       if (semesterCards.length > 0) {
         semesterCards.forEach((card) => {
@@ -20,24 +19,7 @@ export class HomeNavigatorService {
       }
       
       if (this.semesters.length === 0) {
-        console.log('[HomeNavigator] 使用文本匹配降级方案')
         this.extractByTextMatching()
-      }
-      
-      console.log('[HomeNavigator] 提取完成，共', this.semesters.length, '个学期')
-      this.semesters.forEach(s => {
-        const totalPending = s.courses.reduce((sum, c) => sum + c.pendingTasks, 0)
-        console.log(`  - ${s.name} (当前学期: ${s.isCurrent}, 课程: ${s.courses.length}门, 待办: ${totalPending}项)`)
-        s.courses.forEach(c => {
-          console.log(`    • ${c.name} - 进度: ${c.progress}%${c.pendingTasks > 0 ? `, 待办: ${c.pendingTasks}` : ''}`)
-        })
-      })
-      
-      // 调试：输出当前学期的 pendingCount
-      const currentSemester = this.semesters.find(s => s.isCurrent)
-      if (currentSemester) {
-        const pendingCount = currentSemester.courses.reduce((sum, c) => sum + c.pendingTasks, 0)
-        console.log(`[HomeNavigator] 当前学期 pendingCount: ${pendingCount}`)
       }
     } catch (e) {
       console.warn('[HomeNavigator] 提取学期信息失败', e)
@@ -56,8 +38,7 @@ export class HomeNavigatorService {
     
     // 判断是否为当前学期 - 只检查标题开头是否为"本学期"或"当前学期"
     const isCurrent = headerText.startsWith('本学期') || headerText.startsWith('当前学期')
-    console.log(`[HomeNavigator] extractFromCard - headerText: "${headerText}", isCurrent: ${isCurrent}`)
-    
+
     // 提取学期名称
     let semesterName = headerText
       .replace(/（.*$/, '')  // 移除中文括号及后面内容
@@ -67,9 +48,7 @@ export class HomeNavigatorService {
     if (!semesterName) {
       semesterName = isCurrent ? '本学期课程' : '其他学期'
     }
-    
-    console.log('[HomeNavigator] 提取学期:', semesterName, 'isCurrent:', isCurrent, '原始文本:', headerText)
-    
+
     // 查找课程列表（.card-body 是课程项）
     const courseBodies = card.querySelectorAll(':scope > .card-body, .collapse .card-body, .collapse.show .card-body')
     const courses: CourseInfo[] = []
@@ -79,7 +58,6 @@ export class HomeNavigatorService {
       if (course && course.name && !this.seenNames.has(course.name)) {
         this.seenNames.add(course.name)
         courses.push(course)
-        console.log('[HomeNavigator] 提取课程:', course.name)
       }
     })
     
@@ -161,7 +139,6 @@ export class HomeNavigatorService {
     const statusEl = body.querySelector('.card-body-status')
     if (statusEl) {
       const statusText = statusEl.textContent?.trim() || ''
-      console.log(`[HomeNavigator] 课程 "${course.name}" statusText: "${statusText}"`)
       
       if (statusText.includes('无可提交作业')) {
         course.pendingTasks = 0
@@ -172,23 +149,21 @@ export class HomeNavigatorService {
           if (pendingCount > 0 && pendingCount <= 10) {
             course.pendingTasks = pendingCount
             course.hasHomework = true
-            console.log(`[HomeNavigator] 课程 "${course.name}" 匹配到待办任务: "${pendingMatch[0]}" -> ${course.pendingTasks}`)
           }
         }
       }
     } else {
       // 降级方案：从整个文本中提取
-      const text = body.textContent || ''
-      if (text.includes('无可提交作业')) {
+      const textContent = body.textContent || ''
+      if (textContent.includes('无可提交作业')) {
         course.pendingTasks = 0
       } else {
-        const pendingMatch = text.match(/有\s*([1-9]\d?)\s*个(?:作业(?:和测验)?|测验)\s*(?:待|未)完成/)
+        const pendingMatch = textContent.match(/有\s*([1-9]\d?)\s*个(?:作业(?:和测验)?|测验)\s*(?:待|未)完成/)
         if (pendingMatch) {
           const pendingCount = parseInt(pendingMatch[1])
           if (pendingCount > 0 && pendingCount <= 10) {
             course.pendingTasks = pendingCount
             course.hasHomework = true
-            console.log(`[HomeNavigator] 课程 "${course.name}" (降级) 匹配到待办任务: "${pendingMatch[0]}" -> ${course.pendingTasks}`)
           }
         }
       }
@@ -487,27 +462,21 @@ export class HomeNavigatorService {
   }
 
   navigateToCourse(course: CourseInfo): void {
-    console.log('[HomeNavigator] 导航到课程:', course.name)
-    
     // 优先使用保存的按钮引用，模拟点击触发 Angular 路由跳转
     if (course.studyButton) {
-      console.log('[HomeNavigator] 模拟点击"去学习"按钮')
       course.studyButton.click()
       return
     }
     
     if (course.viewButton) {
-      console.log('[HomeNavigator] 模拟点击"查看课程"按钮')
       course.viewButton.click()
       return
     }
     
     // 降级方案：尝试使用 URL 跳转
     if (course.viewCourseUrl) {
-      console.log('[HomeNavigator] 使用 viewCourseUrl 跳转')
       window.location.href = course.viewCourseUrl
     } else if (course.studyUrl) {
-      console.log('[HomeNavigator] 使用 studyUrl 跳转')
       window.location.href = course.studyUrl
     } else {
       console.warn('[HomeNavigator] 未找到课程导航方式')

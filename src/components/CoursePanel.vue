@@ -50,6 +50,12 @@
             <span class="stat-item pending">⬜ {{ unfinishedChapters }} 未完成</span>
           </div>
 
+          <!-- 课程完成状态 -->
+          <div v-if="isCourseCompleted" class="course-completed">
+            <span class="completed-icon">🎉</span>
+            <span class="completed-text">课程已全部完成！</span>
+          </div>
+
           <!-- 刷课进度（正在刷当前课程时显示） -->
           <div v-if="isBrushingCurrentCourse" class="brushing-status">
             <div class="brushing-indicator">
@@ -70,8 +76,16 @@
 
         <!-- 快捷操作 -->
         <div class="quick-actions">
-          <button class="action-btn" @click="expandAll">展开全部</button>
-          <button class="action-btn" @click="collapseAll">折叠全部</button>
+          <button 
+            class="action-btn expand-btn" 
+            :class="{ active: expandMode === 'expand' }"
+            @click="expandAll"
+          >展开全部</button>
+          <button 
+            class="action-btn collapse-btn" 
+            :class="{ active: expandMode === 'collapse' }"
+            @click="collapseAll"
+          >折叠全部</button>
           <button class="action-btn refresh" @click="refreshCourse">🔄 刷新</button>
         </div>
 
@@ -246,61 +260,63 @@
       </div>
     </div>
 
-    <!-- 添加提醒弹窗 -->
-    <div v-if="showAddReminder" class="modal-overlay" @click="showAddReminder = false">
-      <div class="modal" @click.stop>
-        <div class="modal-header">
-          <span>添加提醒</span>
-          <button @click="showAddReminder = false">✕</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>提醒标题</label>
-            <input v-model="newReminder.title" type="text" placeholder="例如：完成测验" />
+    <!-- 添加提醒弹窗 (Teleport 到 body，避免被父容器 transform 影响定位) -->
+    <teleport to="body">
+      <div v-if="showAddReminder" class="modal-overlay" @click="showAddReminder = false">
+        <div class="modal" @click.stop>
+          <div class="modal-header">
+            <span>添加提醒</span>
+            <button @click="showAddReminder = false">✕</button>
           </div>
-          <div class="form-group">
-            <label>提醒类型</label>
-            <select v-model="newReminder.type">
-              <option value="daily">每日提醒</option>
-              <option value="weekly">每周提醒</option>
-              <option value="deadline">截止日期</option>
-            </select>
+          <div class="modal-body">
+            <div class="form-group">
+              <label>提醒标题</label>
+              <input v-model="newReminder.title" type="text" placeholder="例如：完成测验" />
+            </div>
+            <div class="form-group">
+              <label>提醒类型</label>
+              <select v-model="newReminder.type">
+                <option value="daily">每日提醒</option>
+                <option value="weekly">每周提醒</option>
+                <option value="deadline">截止日期</option>
+              </select>
+            </div>
+            <div v-if="newReminder.type === 'daily'" class="form-group">
+              <label>提醒时间</label>
+              <input v-model="newReminder.time" type="time" />
+            </div>
+            <div v-if="newReminder.type === 'weekly'" class="form-group">
+              <label>提醒时间</label>
+              <input v-model="newReminder.time" type="time" />
+            </div>
+            <div v-if="newReminder.type === 'weekly'" class="form-group">
+              <label>星期</label>
+              <select v-model="newReminder.weekday">
+                <option :value="1">周一</option>
+                <option :value="2">周二</option>
+                <option :value="3">周三</option>
+                <option :value="4">周四</option>
+                <option :value="5">周五</option>
+                <option :value="6">周六</option>
+                <option :value="0">周日</option>
+              </select>
+            </div>
+            <div v-if="newReminder.type === 'deadline'" class="form-group">
+              <label>截止日期</label>
+              <input v-model="newReminder.deadline" type="datetime-local" />
+            </div>
+            <div class="form-group">
+              <label>备注（可选）</label>
+              <input v-model="newReminder.description" type="text" placeholder="附加说明..." />
+            </div>
           </div>
-          <div v-if="newReminder.type === 'daily'" class="form-group">
-            <label>提醒时间</label>
-            <input v-model="newReminder.time" type="time" />
+          <div class="modal-footer">
+            <button class="btn-cancel" @click="showAddReminder = false">取消</button>
+            <button class="btn-confirm" @click="addReminder">确定</button>
           </div>
-          <div v-if="newReminder.type === 'weekly'" class="form-group">
-            <label>提醒时间</label>
-            <input v-model="newReminder.time" type="time" />
-          </div>
-          <div v-if="newReminder.type === 'weekly'" class="form-group">
-            <label>星期</label>
-            <select v-model="newReminder.weekday">
-              <option :value="1">周一</option>
-              <option :value="2">周二</option>
-              <option :value="3">周三</option>
-              <option :value="4">周四</option>
-              <option :value="5">周五</option>
-              <option :value="6">周六</option>
-              <option :value="0">周日</option>
-            </select>
-          </div>
-          <div v-if="newReminder.type === 'deadline'" class="form-group">
-            <label>截止日期</label>
-            <input v-model="newReminder.deadline" type="datetime-local" />
-          </div>
-          <div class="form-group">
-            <label>备注（可选）</label>
-            <input v-model="newReminder.description" type="text" placeholder="附加说明..." />
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-cancel" @click="showAddReminder = false">取消</button>
-          <button class="btn-confirm" @click="addReminder">确定</button>
         </div>
       </div>
-    </div>
+    </teleport>
   </div>
 </template>
 
@@ -347,6 +363,9 @@ const bookmarks = ref<Bookmark[]>(bookmarkStore.getAll())
 const notifications = ref(studyReminderService.getNotifications())
 const reminders = ref<StudyReminder[]>(studyReminderService.getAll())
 
+// 展开/折叠互斥状态
+const expandMode = ref<'expand' | 'collapse' | null>(null)
+
 // ===== 搜索状态 =====
 const searchKeyword = ref('')
 const searchResults = ref<SearchResult[]>([])
@@ -382,6 +401,13 @@ const brushingProgress = computed(() => {
   const courseId = getCourseId()
   if (!courseId) return 0
   return courseProgressStore.getCourseCompletionPercent(courseId)
+})
+
+const isCourseCompleted = computed(() => {
+  const courseId = getCourseId()
+  if (!courseId) return false
+  const course = progressData.value.courses[courseId]
+  return course?.isCompleted || false
 })
 
 const currentActivityName = computed(() => {
@@ -477,10 +503,12 @@ function expandAll(): void {
       expandedChapters.value[index] = true
     })
   }
+  expandMode.value = 'expand'
 }
 
 function collapseAll(): void {
   expandedChapters.value = {}
+  expandMode.value = 'collapse'
 }
 
 function getActivityIcon(type: string): string {
@@ -552,11 +580,22 @@ function getResultTypeLabel(type: string): string {
 function addReminder(): void {
   if (!newReminder.value.title.trim()) return
 
-  if (newReminder.value.type === 'deadline' && newReminder.value.deadline) {
+  const courseId = getCourseId()
+  const courseName = (document.title || '').replace(/\s*[-_].*$/, '').trim() || '课程学习'
+
+  if (newReminder.value.type === 'deadline') {
+    if (!newReminder.value.deadline) return
     const deadlineTime = new Date(newReminder.value.deadline).getTime()
     studyReminderService.createDeadlineReminder(
       newReminder.value.title,
       deadlineTime,
+      newReminder.value.description || undefined
+    )
+  } else if (newReminder.value.type === 'weekly') {
+    studyReminderService.createWeeklyReminder(
+      newReminder.value.title,
+      newReminder.value.weekday ?? 1,
+      newReminder.value.time,
       newReminder.value.description || undefined
     )
   } else {
@@ -567,7 +606,6 @@ function addReminder(): void {
     )
   }
 
-  // 重置表单
   newReminder.value = {
     title: '',
     type: 'daily',
@@ -638,8 +676,13 @@ onMounted(() => {
 <style scoped>
 .course-assistant {
   position: fixed;
+  left: 0;
+  top: 0;
   z-index: 999999;
   transition: none;
+  display: inline-block;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .course-btn {
@@ -778,49 +821,92 @@ onMounted(() => {
 /* 进度概览 */
 .progress-overview {
   padding: 14px 18px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e8e8e8;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfeff 100%);
+  border-bottom: 1px solid #e0e7eb;
 }
 
 .progress-bar {
   width: 100%;
-  height: 8px;
-  background: #e8e8e8;
-  border-radius: 4px;
+  height: 10px;
+  background: #d1d5db;
+  border-radius: 6px;
   overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
-  border-radius: 4px;
+  background: linear-gradient(90deg, #10b981 0%, #14b8a6 50%, #06b6d4 100%);
+  border-radius: 6px;
   transition: width 0.3s ease;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
 }
 
 .progress-text {
   margin-top: 8px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: #059669;
+  text-align: right;
 }
 
 .progress-stats {
   display: flex;
   gap: 16px;
   margin-top: 6px;
+  justify-content: flex-end;
 }
 
 .stat-item {
   font-size: 11px;
   color: #666;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 4px;
 }
 
 .stat-item.completed {
   color: #059669;
+  background: rgba(16, 185, 129, 0.1);
 }
 
 .stat-item.pending {
-  color: #f59e0b;
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.1);
+}
+
+/* 课程完成状态 */
+.course-completed {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  animation: completedBounce 0.5s ease;
+}
+
+@keyframes completedBounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+.completed-icon {
+  font-size: 20px;
+  animation: bounce 1s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.completed-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: #92400e;
 }
 
 /* 刷课状态 */
@@ -902,16 +988,29 @@ onMounted(() => {
 .action-btn {
   flex: 1;
   padding: 6px 8px;
-  background: #f0f0f0;
+  background: #e5e7eb;
   border: none;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.15s;
 }
 
 .action-btn:hover {
-  background: #e0e0e0;
+  background: #d1d5db;
+  color: #111827;
+}
+
+.action-btn.expand-btn.active {
+  background: #10b981;
+  color: white;
+}
+
+.action-btn.collapse-btn.active {
+  background: #f59e0b;
+  color: white;
 }
 
 .action-btn.refresh {
@@ -935,32 +1034,62 @@ onMounted(() => {
 /* 章节列表 */
 .chapter-list {
   flex: 1;
-  padding: 8px;
+  padding: 10px;
 }
 
 .chapter-item {
-  margin-bottom: 6px;
-  border-radius: 8px;
+  margin-bottom: 8px;
+  border-radius: 10px;
   overflow: hidden;
+  border: 1px solid #e5e7eb;
+  background: white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.chapter-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .chapter-item.completed {
-  opacity: 0.7;
+  border-color: #bbf7d0;
+  background: linear-gradient(to bottom, #f0fdf4, #ffffff);
+}
+
+.chapter-item.in-progress {
+  border-color: #fde68a;
+  background: linear-gradient(to bottom, #fffbeb, #ffffff);
 }
 
 .chapter-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: #f8f9fa;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #f9fafb;
   cursor: pointer;
   user-select: none;
   transition: background 0.2s;
 }
 
+.chapter-item.completed .chapter-header {
+  background: #d1fae5;
+}
+
+.chapter-item.in-progress .chapter-header {
+  background: #fef3c7;
+}
+
 .chapter-header:hover {
-  background: #eef0f3;
+  background: #f3f4f6;
+}
+
+.chapter-item.completed .chapter-header:hover {
+  background: #a7f3d0;
+}
+
+.chapter-item.in-progress .chapter-header:hover {
+  background: #fde68a;
 }
 
 .status-icon {
@@ -971,22 +1100,44 @@ onMounted(() => {
 .chapter-name {
   flex: 1;
   font-size: 13px;
-  font-weight: 500;
-  color: #333;
+  font-weight: 600;
+  color: #1f2937;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.chapter-item.completed .chapter-name {
+  color: #065f46;
+}
+
+.chapter-item.in-progress .chapter-name {
+  color: #92400e;
+}
+
 .chapter-progress {
   font-size: 11px;
-  color: #666;
+  color: #6b7280;
   flex-shrink: 0;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.chapter-item.completed .chapter-progress {
+  background: rgba(5, 150, 105, 0.15);
+  color: #047857;
+}
+
+.chapter-item.in-progress .chapter-progress {
+  background: rgba(217, 119, 6, 0.15);
+  color: #b45309;
 }
 
 .chapter-arrow {
   font-size: 10px;
-  color: #666;
+  color: #6b7280;
   transition: transform 0.2s;
   flex-shrink: 0;
 }
@@ -998,17 +1149,20 @@ onMounted(() => {
 /* 活动列表 */
 .chapter-activities {
   background: #ffffff;
-  padding: 6px 12px 6px 36px;
+  padding: 4px 10px 4px 40px;
+  border-top: 1px solid #f3f4f6;
 }
 
 .activity-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 0;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 10px 12px;
+  border-bottom: 1px solid #f3f4f6;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.15s;
+  border-radius: 6px;
+  margin: 2px 0;
 }
 
 .activity-item:last-child {
@@ -1016,44 +1170,63 @@ onMounted(() => {
 }
 
 .activity-item:hover {
-  background: #f8f9fa;
+  background: #f0f9ff;
+  transform: translateX(2px);
 }
 
 .activity-item.completed {
-  opacity: 0.6;
+  opacity: 0.65;
+}
+
+.activity-item.completed:hover {
+  background: #f0fdf4;
 }
 
 .activity-icon {
-  font-size: 14px;
+  font-size: 13px;
   flex-shrink: 0;
+  width: 20px;
+  text-align: center;
 }
 
 .activity-name {
   flex: 1;
   font-size: 12px;
-  color: #333;
+  color: #374151;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 500;
+}
+
+.activity-item.completed .activity-name {
+  text-decoration: line-through;
+  color: #9ca3af;
 }
 
 .activity-type {
-  font-size: 10px;
-  color: #999;
+  font-size: 9px;
+  color: #9ca3af;
   flex-shrink: 0;
+  padding: 2px 6px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
 }
 
 .no-activities {
-  padding: 8px 0;
+  padding: 10px;
   font-size: 11px;
-  color: #999;
+  color: #9ca3af;
   text-align: center;
+  font-style: italic;
 }
 
 .no-data {
   padding: 40px 20px;
   text-align: center;
-  color: #666;
+  color: #6b7280;
 }
 
 .no-data p {
@@ -1062,7 +1235,8 @@ onMounted(() => {
 
 .no-data .hint {
   font-size: 11px;
-  color: #999;
+  color: #9ca3af;
+  font-style: italic;
 }
 
 /* 书签 */
@@ -1314,28 +1488,36 @@ onMounted(() => {
   padding: 4px 8px;
 }
 
-/* 弹窗 */
+/* 弹窗 - 覆盖全屏，居中显示 */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 1000000;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 9999999;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin: 0;
+  padding: 0;
 }
 
 .modal {
   background: white;
-  border-radius: 12px;
-  width: 320px;
-  max-height: 80vh;
+  border-radius: 16px;
+  width: 400px;
+  max-width: 90vw;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
-  animation: modalIn 0.2s ease;
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
+  animation: modalIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @keyframes modalIn {
@@ -1347,74 +1529,111 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid #e8e8e8;
-  font-weight: 600;
+  padding: 18px 22px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfeff 100%);
+  border-radius: 16px 16px 0 0;
 }
 
 .modal-header button {
-  background: none;
+  background: #f3f4f6;
   border: none;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  transition: all 0.15s;
+}
+
+.modal-header button:hover {
+  background: #ef4444;
+  color: white;
 }
 
 .modal-body {
-  padding: 18px;
+  padding: 22px;
   overflow-y: auto;
 }
 
 .form-group {
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .form-group label {
   display: block;
-  font-size: 12px;
-  color: #666;
-  margin-bottom: 4px;
+  font-size: 13px;
+  color: #4b5563;
+  margin-bottom: 6px;
+  font-weight: 600;
 }
 
 .form-group input,
 .form-group select {
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid #e8e8e8;
-  border-radius: 6px;
-  font-size: 13px;
+  padding: 10px 12px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
   box-sizing: border-box;
+  transition: all 0.15s;
+  background: #fafafa;
+  color: #1f2937;
 }
 
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
   border-color: #10b981;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
 }
 
 .modal-footer {
   display: flex;
   gap: 12px;
-  padding: 14px 18px;
-  border-top: 1px solid #e8e8e8;
+  padding: 16px 22px;
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+  border-radius: 0 0 16px 16px;
 }
 
 .modal-footer button {
   flex: 1;
-  padding: 10px;
+  padding: 11px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.15s;
 }
 
 .btn-cancel {
-  background: #f0f0f0;
-  color: #666;
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.btn-cancel:hover {
+  background: #e5e7eb;
+  color: #1f2937;
 }
 
 .btn-confirm {
-  background: #10b981;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: white;
+}
+
+.btn-confirm:hover {
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+  transform: translateY(-1px);
 }
 
 /* 高亮效果 */

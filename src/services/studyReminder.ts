@@ -1,11 +1,28 @@
 /**
  * 学习提醒服务
  * 设置和管理学习提醒
+ *
+ * 清理策略：
+ * - 整体数据：存储后 365 天未更新则视为过期，全部清除（防止缓存残留泄漏）
+ * - 截止日期提醒：截止时间过去 7 天后自动清理
+ * - 每日/每周提醒：保留启用状态，用户手动删除；或 180 天未触发视为过期
+ * - 通知历史：只保留最近 50 条，且超过 30 天自动清理
  */
 import { writeStorage, readStorage } from '../utils/storage'
 import { getCourseId } from '../utils/url'
 
 const REMINDER_KEY = 'ouchn_study_reminders'
+
+/** 整体数据 TTL（毫秒）：365 天未更新则全部清除 */
+const DATA_TTL_MS = 365 * 24 * 60 * 60 * 1000
+/** 通知保留数量上限 */
+const NOTIFICATION_MAX_COUNT = 50
+/** 通知保留时间（毫秒）：30 天 */
+const NOTIFICATION_TTL_MS = 30 * 24 * 60 * 60 * 1000
+/** 过期提醒在触发后保留时间（毫秒）：7 天 */
+const EXPIRED_REMINDER_GRACE_MS = 7 * 24 * 60 * 60 * 1000
+/** 每日/每周提醒闲置超时（毫秒）：180 天未触发则清理 */
+const IDLE_REMINDER_TTL_MS = 180 * 24 * 60 * 60 * 1000
 
 /** 提醒类型 */
 export enum ReminderType {
@@ -36,8 +53,10 @@ export interface StudyReminder {
   createdAt: number
 }
 
-/** 提醒数据 */
+/** 提醒数据（含版本与更新时间，用于 TTL 清理） */
 export interface ReminderData {
+  version: number
+  updatedAt: number
   reminders: StudyReminder[]
   notifications: Notification[]
 }
@@ -51,7 +70,10 @@ interface Notification {
   read: boolean
 }
 
+const CURRENT_VERSION = 1
 const DEFAULT_DATA: ReminderData = {
+  version: CURRENT_VERSION,
+  updatedAt: Date.now(),
   reminders: [],
   notifications: [],
 }
@@ -59,7 +81,12 @@ const DEFAULT_DATA: ReminderData = {
 function isValidData (data: unknown): data is ReminderData {
   if (data === null || typeof data !== 'object') return false
   const d = data as any
-  return Array.isArray(d.reminders) && Array.isArray(d.notifications)
+  return (
+    Array.isArray(d.reminders) &&
+    Array.isArray(d.notifications) &&
+    typeof d.version === 'number' &&
+    typeof d.updatedAt === 'number'
+  )
 }
 
 type ReminderListener = (data: ReminderData) => void
@@ -68,23 +95,71 @@ export class StudyReminderService {
   private data: ReminderData = { ...DEFAULT_DATA }
   private listeners: Set<ReminderListener> = new Set()
   private checkTimer: number | null = null
+  private lastCleanAt: number | null = null
 
   constructor () {
     this.load()
     this.startChecking()
   }
 
-  /** 从 localStorage 加载数据 */
+  /** 从 localStorage 加载数据（含版本校验与过期清理） */
   private load (): void {
     const parsed = readStorage<ReminderData>(REMINDER_KEY, DEFAULT_DATA, isValidData)
+
+    // 1) 数据整体过期：超过 DATA_TTL_MS 未更新则全部清空（防止缓存残留泄漏
+    if (!parsed || typeof parsed.updatedAt !== 'number' || Date.now() - parsed.updatedAt > DATA_TTL_MS) {
+      this.data = { ...DEFAULT_DATA, updatedAt: Date.now() }
+      this.save()
+      return
+    }
+
+    // 2) 版本升级检查：v1 的数据需要补齐字段
+    let reminders = (parsed?.reminders || []).slice()
+    let notifications = (parsed?.notifications || []).slice()
+
+    // 3) 过期/闲置提醒清理
+    const now = Date.now()
+    const initialCount = reminders.length
+    reminders = reminders.filter((reminder) => {
+      // 截止日期已过：超过 grace 期直接删除
+      if (reminder.deadline && now - reminder.deadline > EXPIRED_REMINDER_GRACE_MS) {
+        return false
+      }
+      // 每日/每周：长时间未触发且未启用 → 视为闲置删除
+      if (
+        (reminder.type === ReminderType.DAILY || reminder.type === ReminderType.WEEKLY) &&
+        !reminder.enabled &&
+        reminder.lastTriggered &&
+        now - reminder.lastTriggered > IDLE_REMINDER_TTL_MS
+      ) {
+        return false
+      }
+      return true
+    })
+
+    // 4) 通知历史：数量限制 + 时间限制
+    notifications = notifications
+      .filter(n => now - n.timestamp <= NOTIFICATION_TTL_MS)
+      .slice(0, NOTIFICATION_MAX_COUNT)
+
+    const removed = initialCount - reminders.length
+    const removedNotifs = (parsed?.notifications?.length || 0) - notifications.length
+    if (removed > 0 || removedNotifs > 0) {
+      console.log(`[StudyReminder] 启动清理：reminders -${removed}，notifications -${removedNotifs}`)
+    }
+
     this.data = {
-      reminders: parsed?.reminders || [],
-      notifications: parsed?.notifications || [],
+      version: CURRENT_VERSION,
+      updatedAt: Date.now(),
+      reminders,
+      notifications,
     }
   }
 
-  /** 保存数据到 localStorage */
+  /** 保存数据到 localStorage（自动更新 updatedAt 与 version） */
   private save (): void {
+    this.data.version = CURRENT_VERSION
+    this.data.updatedAt = Date.now()
     writeStorage(REMINDER_KEY, this.data)
     this.notifyListeners()
   }
@@ -118,8 +193,11 @@ export class StudyReminderService {
       this.checkReminders()
     }, 60000)
 
-    // 立即检查一次
-    setTimeout(() => this.checkReminders(), 5000)
+    // 启动后 5 秒做一次清理 + 检查
+    setTimeout(() => {
+      this.cleanExpiredData(true)
+      this.checkReminders()
+    }, 5000)
   }
 
   /** 停止定时检查 */
@@ -130,8 +208,61 @@ export class StudyReminderService {
     }
   }
 
+  /**
+   * 清理过期数据（运行时定期调用）
+   * @param force 强制清理，否则每小时最多清理一次
+   */
+  private cleanExpiredData (force = false): void {
+    const now = Date.now()
+    // 每小时最多清理一次（节省性能）
+    if (!force && this.lastCleanAt && now - this.lastCleanAt < 60 * 60 * 1000) {
+      return
+    }
+    this.lastCleanAt = now
+
+    const beforeReminders = this.data.reminders.length
+    const beforeNotifs = this.data.notifications.length
+
+    // 清理过期/闲置提醒
+    this.data.reminders = this.data.reminders.filter((reminder) => {
+      // 截止日期已过 grace 期
+      if (reminder.deadline && now - reminder.deadline > EXPIRED_REMINDER_GRACE_MS) {
+        return false
+      }
+      // 每日/每周：关闭状态 + 长期未触发 → 视为闲置
+      if (
+        (reminder.type === ReminderType.DAILY || reminder.type === ReminderType.WEEKLY) &&
+        !reminder.enabled &&
+        reminder.lastTriggered &&
+        now - reminder.lastTriggered > IDLE_REMINDER_TTL_MS
+      ) {
+        return false
+      }
+      return true
+    })
+
+    // 通知历史：时间 + 数量限制
+    this.data.notifications = this.data.notifications
+      .filter((n) => now - n.timestamp <= NOTIFICATION_TTL_MS)
+      .slice(0, NOTIFICATION_MAX_COUNT)
+
+    const removedReminders = beforeReminders - this.data.reminders.length
+    const removedNotifs = beforeNotifs - this.data.notifications.length
+
+    if (removedReminders > 0 || removedNotifs > 0) {
+      console.log(`[StudyReminder] 定期清理：reminders -${removedReminders}，notifications -${removedNotifs}`)
+      this.save()
+    } else if (force) {
+      // 强制模式下至少刷新 updatedAt
+      this.save()
+    }
+  }
+
   /** 检查提醒 */
   private checkReminders (): void {
+    // 先做一次惰性过期清理
+    this.cleanExpiredData(false)
+
     const now = new Date()
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
     const currentWeekday = now.getDay()
@@ -201,9 +332,9 @@ export class StudyReminderService {
 
     this.data.notifications.unshift(notification)
 
-    // 只保留最近 50 条通知
-    if (this.data.notifications.length > 50) {
-      this.data.notifications = this.data.notifications.slice(0, 50)
+    // 只保留最近 NOTIFICATION_MAX_COUNT 条通知
+    if (this.data.notifications.length > NOTIFICATION_MAX_COUNT) {
+      this.data.notifications = this.data.notifications.slice(0, NOTIFICATION_MAX_COUNT)
     }
 
     this.save()
@@ -321,6 +452,31 @@ export class StudyReminderService {
     this.data.reminders.push(reminder)
     this.save()
     console.log('[StudyReminder] 创建每日提醒:', title, time)
+    return reminder
+  }
+
+  /** 创建每周提醒 */
+  createWeeklyReminder (title: string, weekday: number, time: string, description?: string): StudyReminder {
+    const courseId = getCourseId() || 'global'
+    const courseName = document.title.replace(/\s*[-_].*$/, '').trim() || '通用'
+
+    const reminder: StudyReminder = {
+      id: `rem_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      courseId,
+      courseName,
+      type: ReminderType.WEEKLY,
+      title,
+      description,
+      time,
+      weekday,
+      repeat: 'weekly',
+      enabled: true,
+      createdAt: Date.now(),
+    }
+
+    this.data.reminders.push(reminder)
+    this.save()
+    console.log('[StudyReminder] 创建每周提醒:', title, weekday, time)
     return reminder
   }
 

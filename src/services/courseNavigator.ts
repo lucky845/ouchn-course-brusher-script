@@ -2,7 +2,8 @@
  * 课程详情页导航服务
  * 负责解析课程页面的章节结构、活动列表、进度信息等
  */
-import type { CourseDetailInfo, ChapterItem, ActivityItem, ChapterStatus } from '../types'
+import type { CourseDetailInfo, ChapterItem, ActivityItem } from '../types'
+import { ChapterStatus } from '../types'
 import { getCourseId, getCourseName } from '../utils/url'
 
 export class CourseNavigatorService {
@@ -17,7 +18,6 @@ export class CourseNavigatorService {
       const courseName = getCourseName()
 
       if (!courseId) {
-        console.log('[CourseNavigator] 非课程详情页，跳过')
         return null
       }
 
@@ -36,7 +36,6 @@ export class CourseNavigatorService {
         completedChapters,
       }
 
-      console.log('[CourseNavigator] 课程信息提取完成:', this.courseInfo)
       return this.courseInfo
     } catch (e) {
       console.warn('[CourseNavigator] 提取课程信息失败:', e)
@@ -46,35 +45,20 @@ export class CourseNavigatorService {
 
   /**
    * 提取课程章节列表
+   * 章节容器：li.card.section.main 或 [id^="section-"]
    */
   private extractChapters(): ChapterItem[] {
     const chapters: ChapterItem[] = []
 
-    // 尝试多种选择器来匹配 Moodle 课程章节结构
-    const sectionSelectors = [
-      '.course-section',
-      '.section',
-      '.topics .topic',
-      '.weeks .week',
-      '[id^="section-"]',
-    ]
+    // 1. 优先匹配 remuiformat 主题的章节结构
+    const sections = document.querySelectorAll('ul.remui-format-list > li.card.section.main, li.card.section.main, li.section, li[id^="section-"]')
 
-    let sections: NodeListOf<Element> | null = null
-    for (const selector of sectionSelectors) {
-      sections = document.querySelectorAll(selector)
-      if (sections.length > 0) {
-        console.log('[CourseNavigator] 使用选择器:', selector, '找到', sections.length, '个章节')
-        break
-      }
-    }
-
-    if (!sections || sections.length === 0) {
-      console.log('[CourseNavigator] 未找到章节结构')
+    if (sections.length === 0) {
       return chapters
     }
 
-    sections.forEach((section, index) => {
-      const chapter = this.extractChapterFromSection(section as HTMLElement, index)
+    sections.forEach((section) => {
+      const chapter = this.extractChapterFromSection(section as HTMLElement)
       if (chapter) {
         chapters.push(chapter)
       }
@@ -86,48 +70,86 @@ export class CourseNavigatorService {
   /**
    * 从单个 section 元素提取章节信息
    */
-  private extractChapterFromSection(section: HTMLElement, index: number): ChapterItem | null {
-    // 提取章节标题
-    const titleSelectors = [
-      '.section-title',
-      '.sectionname',
-      '.content .h3',
-      'h3',
-      '.section-header .title',
-    ]
+  private extractChapterFromSection(section: HTMLElement): ChapterItem | null {
+    // 提取章节名称
+    // 优先：h4.sectionname > a 内的文字
+    // 备用：span.hidden.sectionname
+    const h4Link = section.querySelector('h4.sectionname a, .sectionname a, h3.sectionname a')
+    const hiddenSpan = section.querySelector('span.hidden.sectionname')
 
     let chapterName = ''
-    for (const selector of titleSelectors) {
-      const titleEl = section.querySelector(selector)
-      if (titleEl) {
-        const text = titleEl.textContent?.trim() || ''
-        // 过滤掉章节编号
-        const match = text.match(/(?:^\d+[\.、:：]\s*)?(.+)/)
-        chapterName = match ? match[1].trim() : text
-        if (chapterName) break
+    if (h4Link) {
+      const fullText = h4Link.textContent?.trim() || ''
+      // 移除进度相关的后缀（如 "已完成"）
+      chapterName = fullText
+        .replace(/已完成$/g, '')
+        .replace(/\d+\s*\/\s*\d+$/g, '')
+        .trim()
+    } else if (hiddenSpan) {
+      chapterName = hiddenSpan.textContent?.trim() || ''
+    }
+
+    if (!chapterName) {
+      return null
+    }
+
+    // 提取章节完成状态（从 h4 的 class 或 img 判断）
+    const h4 = section.querySelector('h4.sectionname') || section.querySelector('.sectionname')
+    const statusIcon = h4?.querySelector('img[src*="finish"], img[src*="nofinish"]')
+    let chapterStatus = ChapterStatus.NOT_STARTED
+
+    if (h4) {
+      const h4Class = h4.className.toString().toLowerCase()
+      if (h4Class.includes('finishtitle') || h4Class.includes('newgk-finishtitle')) {
+        chapterStatus = ChapterStatus.COMPLETED
+      } else if (h4Class.includes('nofinishtitle')) {
+        chapterStatus = ChapterStatus.NOT_STARTED
       }
     }
 
-    // 如果没有标题，尝试从 section 的 id 或其他属性获取
-    if (!chapterName) {
-      const sectionId = section.id || ''
-      const idMatch = sectionId.match(/section-(\d+)/)
-      chapterName = idMatch ? `第${idMatch[1]}节` : `章节 ${index + 1}`
+    if (statusIcon) {
+      const src = (statusIcon as HTMLImageElement).getAttribute('src') || ''
+      if (src.includes('allfinish')) {
+        chapterStatus = ChapterStatus.COMPLETED
+      } else if (src.includes('allnofinish')) {
+        chapterStatus = ChapterStatus.NOT_STARTED
+      }
+    }
+
+    // 提取章节进度（如 "4/4"）
+    const progressSpan = section.querySelector('span.newgk-jindudivspan2')
+    let progress = 0
+    if (progressSpan) {
+      const progressText = progressSpan.textContent?.trim() || ''
+      const match = progressText.match(/(\d+)\s*\/\s*(\d+)/)
+      if (match) {
+        const completed = parseInt(match[1], 10)
+        const total = parseInt(match[2], 10)
+        if (total > 0) {
+          progress = Math.round((completed / total) * 100)
+        }
+      }
     }
 
     // 提取活动项
     const activities = this.extractActivities(section)
 
-    // 计算章节进度
-    const { status, progress } = this.calculateChapterProgress(activities)
+    // 如果没有明确的进度显示，则通过活动计算
+    if (progress === 0 && activities.length > 0) {
+      const completedCount = activities.filter(a => a.status === 'completed').length
+      progress = Math.round((completedCount / activities.length) * 100)
+      chapterStatus = progress === 100 ? ChapterStatus.COMPLETED
+        : progress > 0 ? ChapterStatus.IN_PROGRESS
+          : ChapterStatus.NOT_STARTED
+    }
 
-    // 获取章节的链接 URL（如果有）
-    const linkEl = section.querySelector('a.section-title, .section-title a, h3 a')
-    const linkUrl = linkEl ? (linkEl as HTMLAnchorElement).href : undefined
+    // 获取章节链接
+    const linkEl = h4Link as HTMLAnchorElement | null
+    const linkUrl = linkEl?.href
 
     return {
       name: chapterName,
-      status,
+      status: chapterStatus,
       progress,
       element: section,
       linkUrl,
@@ -137,44 +159,17 @@ export class CourseNavigatorService {
 
   /**
    * 从 section 中提取活动项
+   * 活动容器：ul.section.img-text > li.activity
+   * 排除：modtype_label（纯文本标签）
    */
   private extractActivities(section: HTMLElement): ActivityItem[] {
     const activities: ActivityItem[] = []
 
-    // 活动类型映射
-    const activityTypeMap: Record<string, string> = {
-      'resource': '资源',
-      'url': '外部链接',
-      'page': '页面',
-      'forum': '讨论区',
-      'quiz': '测验',
-      'assignment': '作业',
-      'choice': '投票',
-      'scorm': 'SCORM',
-      'lesson': '互动课程',
-      'workshop': '协作活动',
-      'folder': '文件夹',
-      'label': '标签',
-    }
+    // 在当前 section 内查找活动列表
+    const activityItems = section.querySelectorAll('ul.section.img-text > li.activity, ul.section > li.activity')
 
-    // 活动选择器
-    const activitySelectors = [
-      '.activity',
-      '.mod-indent-outer',
-      '.activity-item',
-      '[class*="activity "]',
-    ]
-
-    let activityEls: NodeListOf<Element> | null = null
-    for (const selector of activitySelectors) {
-      activityEls = section.querySelectorAll(selector)
-      if (activityEls.length > 0) break
-    }
-
-    if (!activityEls) return activities
-
-    activityEls.forEach((el) => {
-      const activity = this.extractActivityItem(el as HTMLElement, activityTypeMap)
+    activityItems.forEach((activityEl) => {
+      const activity = this.extractActivityFromElement(activityEl as HTMLElement)
       if (activity) {
         activities.push(activity)
       }
@@ -184,97 +179,92 @@ export class CourseNavigatorService {
   }
 
   /**
-   * 从活动元素提取单个活动信息
+   * 从单个活动元素提取活动信息
    */
-  private extractActivityItem(el: HTMLElement, typeMap: Record<string, string>): ActivityItem | null {
+  private extractActivityFromElement(el: HTMLElement): ActivityItem | null {
+    // 排除 label 类型（纯文本标签，不是可交互活动）
+    const className = el.className.toString().toLowerCase()
+    if (className.includes('modtype_label')) {
+      return null
+    }
+
     // 提取活动名称
-    const nameSelectors = [
-      '.instancename',
-      '.activityname',
-      '.content a',
-      'a',
-      'span',
-    ]
+    const instancename = el.querySelector('.instancename')
+    const name = instancename
+      ? (instancename.textContent?.replace(/\s+/g, ' ').trim().replace(/\s\s*$/, '') || '')
+      : (el.textContent?.trim() || '')
 
-    let name = ''
-    for (const selector of nameSelectors) {
-      const nameEl = el.querySelector(selector)
-      if (nameEl) {
-        const text = nameEl.textContent?.trim() || ''
-        // 过滤掉状态后缀（如 "已完成 (1)"）
-        const cleanName = text.replace(/\s*\([\d没\d完成]+\)\s*$/g, '').trim()
-        if (cleanName && cleanName.length > 1 && cleanName.length < 100) {
-          name = cleanName
-          break
-        }
-      }
+    if (!name) {
+      return null
     }
-
-    if (!name) return null
-
-    // 提取活动类型
-    let activityType = '未知'
-    const typeSelectors = [
-      '[class*="modtype_"]',
-      '.activitytype',
-      'img.icon',
-    ]
-
-    for (const selector of typeSelectors) {
-      const typeEl = el.querySelector(selector)
-      if (typeEl) {
-        if (typeEl.className.toString().includes('modtype_')) {
-          const classList = typeEl.className.toString()
-          const typeMatch = classList.match(/modtype_(\w+)/)
-          if (typeMatch) {
-            activityType = typeMap[typeMatch[1]] || typeMatch[1]
-          }
-        } else if (typeEl.tagName === 'IMG') {
-          // 从图标 alt 或 src 获取类型
-          const alt = (typeEl as HTMLImageElement).alt || ''
-          if (alt) activityType = alt
-        }
-        break
-      }
-    }
-
-    // 提取活动状态
-    const status = this.getActivityStatus(el)
 
     // 提取活动链接
-    const linkEl = el.querySelector('a[href*="/mod/"], a[href*="/resources/"]')
-    const url = linkEl ? (linkEl as HTMLAnchorElement).href : undefined
+    const linkEl = el.querySelector('.activityinstance a.aalink, .activityinstance a, a.aalink')
+    const href = linkEl ? (linkEl as HTMLAnchorElement).href : undefined
+
+    // 提取活动类型
+    const typeMatch = className.match(/modtype_(\w+)/)
+    const type = typeMatch ? typeMatch[1] : 'unknown'
+
+    // 提取活动完成状态
+    const status = this.getActivityStatus(el)
 
     return {
       name,
-      type: activityType,
       status,
-      url,
+      type,
+      linkUrl: href,
       element: el,
     }
   }
 
   /**
    * 获取活动完成状态
+   * 优先级：
+   * 1. span.autocompletion > img.icon 的 title 属性（最可靠）
+   * 2. 图片 src 文件名
+   * 3. class/text 内容
    */
   private getActivityStatus(el: HTMLElement): ChapterStatus {
-    const className = el.className.toString().toLowerCase()
-    const text = el.textContent?.toLowerCase() || ''
+    const elClass = el.className.toString().toLowerCase()
+    const elText = el.textContent?.toLowerCase() || ''
 
-    // 已完成状态
-    if (className.includes('completed') || className.includes('done')) {
+    // 1. 检查 autocompletion 图标 title
+    const autoCompletionIcon = el.querySelector('.autocompletion img.icon, .autocompletion .icon')
+    if (autoCompletionIcon) {
+      const title = (autoCompletionIcon as HTMLElement).getAttribute('title') || autoCompletionIcon.textContent || ''
+      if (title.includes('已完成')) {
+        return ChapterStatus.COMPLETED
+      }
+      if (title.includes('未完成')) {
+        return ChapterStatus.NOT_STARTED
+      }
+    }
+
+    // 2. 检查图片 src
+    const icons = el.querySelectorAll('img.icon')
+    for (const icon of Array.from(icons)) {
+      const src = (icon as HTMLImageElement).getAttribute('src') || ''
+      if (src.includes('sectionfinish') || src.includes('allfinish')) {
+        return ChapterStatus.COMPLETED
+      }
+      if (src.includes('allnofinish') || src.includes('notfinish') || src.includes('incomplete')) {
+        return ChapterStatus.NOT_STARTED
+      }
+    }
+
+    // 3. 检查 class 或 text 内容
+    if (elClass.includes('completed') || elClass.includes('done')) {
       return ChapterStatus.COMPLETED
     }
-    if (text.includes('已完成')) {
+    if (elText.includes('已完成')) {
       return ChapterStatus.COMPLETED
     }
 
-    // 进行中状态（可能有部分完成）
-    if (className.includes('in-progress') || className.includes('inprogress')) {
+    if (elClass.includes('in-progress') || elClass.includes('inprogress')) {
       return ChapterStatus.IN_PROGRESS
     }
 
-    // 检查是否有完成标记
     const completionIcon = el.querySelector('.icon.img-filter:only-child, .icon.fa-check, .completion-icon.completed')
     if (completionIcon) {
       return ChapterStatus.COMPLETED
@@ -284,74 +274,29 @@ export class CourseNavigatorService {
   }
 
   /**
-   * 计算章节进度
+   * 计算章节进度和状态
    */
   private calculateChapterProgress(activities: ActivityItem[]): { status: ChapterStatus; progress: number } {
     if (activities.length === 0) {
       return { status: ChapterStatus.NOT_STARTED, progress: 0 }
     }
 
-    const completed = activities.filter(a => a.status === ChapterStatus.COMPLETED).length
-    const progress = Math.round((completed / activities.length) * 100)
+    const completedCount = activities.filter(a => a.status === 'completed').length
+    const inProgressCount = activities.filter(a => a.status === 'in_progress').length
+    const progress = Math.round((completedCount / activities.length) * 100)
 
-    let status: ChapterStatus
-    if (completed === activities.length) {
+    let status = ChapterStatus.NOT_STARTED
+    if (completedCount === activities.length) {
       status = ChapterStatus.COMPLETED
-    } else if (completed > 0) {
+    } else if (completedCount > 0 || inProgressCount > 0) {
       status = ChapterStatus.IN_PROGRESS
-    } else {
-      status = ChapterStatus.NOT_STARTED
     }
 
     return { status, progress }
   }
 
   /**
-   * 滚动到指定章节
-   */
-  scrollToChapter(chapterIndex: number): boolean {
-    if (!this.courseInfo || !this.courseInfo.chapters[chapterIndex]) {
-      console.warn('[CourseNavigator] 章节索引无效:', chapterIndex)
-      return false
-    }
-
-    const chapter = this.courseInfo.chapters[chapterIndex]
-    if (chapter.element) {
-      chapter.element.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      // 高亮效果
-      chapter.element.classList.add('course-assistant-highlight')
-      setTimeout(() => {
-        chapter.element?.classList.remove('course-assistant-highlight')
-      }, 2000)
-      return true
-    }
-
-    return false
-  }
-
-  /**
-   * 滚动到指定活动
-   */
-  scrollToActivity(chapterIndex: number, activityIndex: number): boolean {
-    if (!this.courseInfo) return false
-    const chapter = this.courseInfo.chapters[chapterIndex]
-    if (!chapter || !chapter.activities[activityIndex]) return false
-
-    const activity = chapter.activities[activityIndex]
-    if (activity.element) {
-      activity.element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      activity.element.classList.add('course-assistant-highlight')
-      setTimeout(() => {
-        activity.element?.classList.remove('course-assistant-highlight')
-      }, 2000)
-      return true
-    }
-
-    return false
-  }
-
-  /**
-   * 获取课程信息
+   * 获取课程信息（缓存）
    */
   getCourseInfo(): CourseDetailInfo | null {
     return this.courseInfo
@@ -360,8 +305,73 @@ export class CourseNavigatorService {
   /**
    * 刷新课程信息
    */
-  refresh(): CourseDetailInfo | null {
+  refreshCourseInfo(): CourseDetailInfo | null {
+    this.courseInfo = null
     return this.extractCourseInfo()
+  }
+
+  /**
+   * 获取第一个未完成的活动
+   */
+  getFirstIncompleteActivity(): ActivityItem | null {
+    if (!this.courseInfo) return null
+
+    for (const chapter of this.courseInfo.chapters) {
+      for (const activity of chapter.activities) {
+        if (activity.status !== 'completed') {
+          return activity
+        }
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * 获取未完成活动总数
+   */
+  getIncompleteCount(): number {
+    if (!this.courseInfo) return 0
+
+    let count = 0
+    for (const chapter of this.courseInfo.chapters) {
+      for (const activity of chapter.activities) {
+        if (activity.status !== 'completed') {
+          count++
+        }
+      }
+    }
+    return count
+  }
+
+  /**
+   * 刷新课程信息（refresh 别名）
+   */
+  refresh(): CourseDetailInfo | null {
+    return this.refreshCourseInfo()
+  }
+
+  /**
+   * 滚动到指定章节
+   */
+  scrollToChapter(chapterIndex: number): void {
+    if (!this.courseInfo) return
+    const chapter = this.courseInfo.chapters[chapterIndex]
+    if (chapter?.element) {
+      chapter.element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  /**
+   * 滚动到指定活动
+   */
+  scrollToActivity(chapterIndex: number, activityIndex: number): void {
+    if (!this.courseInfo) return
+    const chapter = this.courseInfo.chapters[chapterIndex]
+    const activity = chapter?.activities[activityIndex]
+    if (activity?.element) {
+      activity.element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
   }
 }
 

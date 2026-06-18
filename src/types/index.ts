@@ -14,6 +14,7 @@ export enum PanelType {
   FLOATING = 'floating',
   COURSE = 'course',
   QUIZ = 'quiz',
+  MOD = 'mod',
 }
 
 export const PLAYBACK_RATES = {

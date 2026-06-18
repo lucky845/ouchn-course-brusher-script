@@ -2,7 +2,8 @@
  * 课程进度共享状态服务
  * 用于在刷课页面和课程详情页面板之间共享刷课进度
  */
-import type { CourseDetailInfo, ChapterItem, ChapterStatus } from '../types'
+import type { CourseDetailInfo, ChapterItem } from '../types'
+import { ChapterStatus } from '../types'
 import { writeStorage, readStorage } from '../utils/storage'
 
 const COURSE_PROGRESS_KEY = 'ouchn_course_progress'
@@ -21,6 +22,8 @@ export interface CourseProgress {
   /** 当前正在刷的活动索引 */
   currentActivityIndex: number
   totalActivities: number
+  /** 是否已完成（所有活动都完成） */
+  isCompleted: boolean
 }
 
 /** 所有课程的进度数据 */
@@ -122,6 +125,7 @@ export class CourseProgressStore {
         completedActivities: [],
         currentActivityIndex: 0,
         totalActivities,
+        isCompleted: false,
       }
     }
 
@@ -133,7 +137,6 @@ export class CourseProgressStore {
     course.totalActivities = totalActivities
 
     this.save()
-    console.log('[CourseProgressStore] 开始刷课:', courseName)
   }
 
   /** 更新当前刷课活动 */
@@ -149,7 +152,6 @@ export class CourseProgressStore {
 
     // 防抖保存
     this.debouncedSave()
-    console.log('[CourseProgressStore] 更新活动:', activityName, `(${activityIndex + 1}/${course.totalActivities})`)
   }
 
   /** 标记活动完成 */
@@ -161,8 +163,25 @@ export class CourseProgressStore {
     if (!course.completedActivities.includes(activityIndex)) {
       course.completedActivities.push(activityIndex)
       course.lastUpdateTime = Date.now()
+      
+      // 检查课程是否全部完成
+      this.checkCourseCompleted(courseId)
+      
       this.debouncedSave()
-      console.log('[CourseProgressStore] 标记完成:', activityIndex, `(${course.completedActivities.length}/${course.totalActivities})`)
+    }
+  }
+
+  /** 检查课程是否全部完成 */
+  private checkCourseCompleted (courseId: string): void {
+    const course = this.data.courses[courseId]
+    if (!course) return
+    
+    const wasCompleted = course.isCompleted
+    course.isCompleted = course.totalActivities > 0 && 
+      course.completedActivities.length >= course.totalActivities
+    
+    if (course.isCompleted && !wasCompleted) {
+      console.log(`[CourseProgressStore] 课程完成: ${course.courseName}`)
     }
   }
 
@@ -176,7 +195,6 @@ export class CourseProgressStore {
       course.isBrushing = false
       course.lastUpdateTime = Date.now()
       this.save()
-      console.log('[CourseProgressStore] 停止刷课:', course.courseName)
     }
 
     this.data.currentCourseId = null
@@ -200,6 +218,7 @@ export class CourseProgressStore {
         completedActivities: [],
         currentActivityIndex: 0,
         totalActivities: courseInfo.chapters.reduce((sum, ch) => sum + ch.activities.length, 0),
+        isCompleted: false,
       }
     } else {
       // 更新课程名称
@@ -210,16 +229,21 @@ export class CourseProgressStore {
 
     // 从课程详情页同步已完成的活动状态
     let activityIndex = 0
+    const completedIndices: number[] = []
     courseInfo.chapters.forEach((chapter) => {
       chapter.activities.forEach((activity) => {
         if (activity.status === ChapterStatus.COMPLETED) {
-          if (!this.data.courses[courseId].completedActivities.includes(activityIndex)) {
-            this.data.courses[courseId].completedActivities.push(activityIndex)
-          }
+          completedIndices.push(activityIndex)
         }
         activityIndex++
       })
     })
+    
+    // 更新完成列表
+    this.data.courses[courseId].completedActivities = completedIndices
+    
+    // 检查课程是否完成
+    this.checkCourseCompleted(courseId)
 
     this.save()
     console.log('[CourseProgressStore] 同步课程详情页进度:', courseInfo.courseName)
@@ -247,7 +271,6 @@ export class CourseProgressStore {
   clear (): void {
     this.data = { ...DEFAULT_DATA }
     this.save()
-    console.log('[CourseProgressStore] 已清空所有数据')
   }
 
   /** 清空指定课程的数据 */
@@ -258,7 +281,6 @@ export class CourseProgressStore {
         this.data.currentCourseId = null
       }
       this.save()
-      console.log('[CourseProgressStore] 已清空课程:', courseId)
     }
   }
 }

@@ -8,11 +8,11 @@ import QuizPanel from './components/QuizPanel.vue'
 import HomePanel from './components/HomePanel.vue'
 import CoursePanel from './components/CoursePanel.vue'
 import { writeStorageString, readStorageString, removeStorage } from './utils/storage'
-import { isStudentHomePage, isQuizPage, isCoursePage } from './utils/url'
+import { isStudentHomePage, isQuizPage, isCoursePage, isModPage } from './utils/url'
 
 const STORAGE_KEY = 'ouchn_brusher_panel'
 
-type PanelTypeKey = 'home' | 'quiz' | 'course'
+type PanelTypeKey = 'home' | 'quiz' | 'course' | 'mod'
 
 interface PanelConfig {
   id: string
@@ -40,6 +40,12 @@ const PANEL_CONFIGS: Record<PanelTypeKey, PanelConfig> = {
     label: '课程页面',
     component: CoursePanel,
   },
+  mod: {
+    id: 'mod-brushing-panel',
+    type: 'mod',
+    label: '刷课页面',
+    component: FloatingPanel,
+  },
 }
 
 let isInitializing = false
@@ -52,6 +58,7 @@ function detectPanelType (): PanelTypeKey | null {
   if (isStudentHomePage()) return 'home'
   if (isQuizPage()) return 'quiz'
   if (isCoursePage()) return 'course'
+  if (isModPage()) return 'mod'
   return null
 }
 
@@ -76,7 +83,8 @@ function mountPanel (panelType: PanelTypeKey): void {
 function hasExistingPanel (): boolean {
   return !!document.getElementById('home-brushing-panel') ||
          !!document.getElementById('quiz-brushing-panel') ||
-         !!document.getElementById('course-brushing-panel')
+         !!document.getElementById('course-brushing-panel') ||
+         !!document.getElementById('mod-brushing-panel')
 }
 
 /**

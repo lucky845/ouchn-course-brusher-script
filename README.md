@@ -30,6 +30,14 @@
 - 🔢 **多小题自动拆分**：综合题/应用题自动拆分为独立子题
 - 📎 **一键复制**：提取的题目自动格式化并复制到剪贴板
 
+### 课程详情页面板（v2.2.0 新增）
+- 📖 **章节导航**：清晰展示课程章节结构，支持折叠/展开
+- 📊 **进度概览**：实时显示课程完成进度和刷课状态
+- 🔖 **书签功能**：保存当前学习位置，方便下次继续
+- 🔍 **内容搜索**：快速搜索课程内的活动项
+- ⏰ **学习提醒**：支持每日/每周/截止日期提醒
+- 🎯 **跨面板联动**：刷课时自动同步进度到课程详情页面板
+
 ### 悬浮窗
 - 🎨 **现代化 UI**：紫色主题控制面板，美观大方
 - 🖱️ **拖拽定位**：支持在屏幕上自由拖拽
@@ -116,6 +124,7 @@ course-brushing-script/
 │   ├── components/                  # Vue 组件
 │   │   ├── FloatingPanel.vue        # 刷课控制面板
 │   │   ├── HomePanel.vue            # 课程管理面板
+│   │   ├── CoursePanel.vue          # 课程详情页面板（v2.2.0）
 │   │   └── QuizPanel.vue            # 答题助手面板
 │   ├── composables/                 # 组合式函数
 │   │   └── useDraggablePanel.ts     # 拖拽/吸附逻辑复用
@@ -123,6 +132,11 @@ course-brushing-script/
 │   │   ├── videoManager.ts          # 视频播放管理
 │   │   ├── sidebarNavigator.ts      # 侧边栏导航
 │   │   ├── homeNavigator.ts         # 课程管理导航
+│   │   ├── courseNavigator.ts       # 课程详情页导航（v2.2.0）
+│   │   ├── courseProgressStore.ts   # 课程刷课进度共享状态（v2.2.0）
+│   │   ├── courseBookmarkStore.ts   # 课程书签存储（v2.2.0）
+│   │   ├── contentSearch.ts         # 内容搜索服务（v2.2.0）
+│   │   ├── studyReminder.ts         # 学习提醒服务（v2.2.0）
 │   │   ├── quizExtractor.ts         # 题目提取
 │   │   ├── settingsStore.ts         # 配置持久化
 │   │   ├── progressStats.ts         # 进度统计
