@@ -1,6 +1,6 @@
 # 国家开放大学实验学院自动刷课脚本
 
-基于 Vue 3 + TypeScript 重构的油猴脚本，适用于国家开放大学实验学院的 Moodle 平台。（个人自用）
+基于 Vue 3 + TypeScript 重构的油猴脚本，适用于国家开放大学实验学院刷课脚本。
 
 **当前版本**：v2.2.0
 
@@ -55,7 +55,7 @@
 ## 安装方法
 
 1. 安装浏览器扩展 [Tampermonkey](https://www.tampermonkey.net/)（油猴）
-2. 点击 [安装脚本](https://github.com/lucky845/ouchn-course-brusher-script/raw/main/ouchn-course-brusher-vue.user.js)
+2. 点击 [安装脚本](https://github.com/lucky845/ouchn-course-brusher-script/releases/latest/download/ouchn-course-brusher-vue.user.js)
 3. 按提示完成安装
 
 ## 使用方法
@@ -164,7 +164,7 @@ course-brushing-script/
 
 ## 更新日志
 
-完整更新日志请查看 [CHANGELOG.md](file:///Users/lucky845/workspace/MyWorkspace/WebProjects/course-brushing-script/CHANGELOG.md)。
+完整更新日志请查看 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 注意事项
 
@@ -174,7 +174,7 @@ course-brushing-script/
 
 ## 开源协议
 
-MIT License
+[MIT License](License)
 
 ## 作者
 
