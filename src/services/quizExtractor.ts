@@ -4,6 +4,8 @@
  */
 import type { Question, ExtractResult } from '../types'
 import { QuestionType } from '../types'
+import { cleanText, isTextPlaceholder } from '../utils/text'
+import { copyToClipboard } from '../utils/clipboard'
 
 const QUIZ_URL_PATTERN = '/mod/quiz/'
 
@@ -49,64 +51,6 @@ const TYPE_TEXT_MAP: Array<{ pattern: RegExp; type: QuestionType }> = [
   { pattern: /计算题|计算/, type: QuestionType.CALCULATION },
   { pattern: /排序题|排序/, type: QuestionType.ORDERING },
 ]
-
-// 占位符文本（需要过滤）
-const PLACEHOLDER_TEXTS = new Set([
-  '清空我的选择',
-  '请选择',
-  '选择一项',
-  '选择答案',
-  'clear my choice',
-  'select one',
-  '回答',
-  '答题',
-])
-
-// 系统提示关键词（需要过滤）
-const SYSTEM_TAGS = [
-  '请在输入框中输入您的答案',
-  '请选择一个选项：',
-  '请从下拉菜单中选择',
-  '请将正确答案',
-  '请输入你的答案',
-  '说明：',
-  '提示：',
-  '题目',
-  '拖动选项',
-  '空格处',
-  '标记试题',
-  '试题正文',
-  '还未作答',
-  '满分',
-]
-
-// ============ 工具函数 ============
-
-function isPlaceholderText(text: string): boolean {
-  const t = text.trim()
-  if (!t) return true
-  if (t.length <= 1) return true
-  if (/^[A-Za-z]$/.test(t)) return true
-  if (PLACEHOLDER_TEXTS.has(t)) return true
-  return false
-}
-
-function cleanText(raw: string): string {
-  if (!raw) return ''
-  let text = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-  text = text.replace(/[ \t]+/g, ' ')
-  text = text.replace(/\n{3,}/g, '\n\n')
-  // 不再过滤单字母行！因为选项可能被拆分成 "A" + 内容
-  const lines = text.split('\n').map(l => l.trim()).filter(l => {
-    if (!l) return false
-    // 只过滤系统提示关键词，不过滤单字母
-    for (const tag of SYSTEM_TAGS) {
-      if (l.includes(tag)) return false
-    }
-    return true
-  })
-  return lines.join(' ').trim()  // 用空格连接，而不是换行
-}
 
 // ============ 题型检测 ============
 
@@ -179,7 +123,7 @@ function extractChoiceOptions(element: Element): string[] {
     if (!text) return
     // 只过滤真正的占位符，不过滤单字母
     const trimmed = text.trim()
-    if (PLACEHOLDER_TEXTS.has(trimmed)) return
+    if (isTextPlaceholder(trimmed)) return
     const norm = trimmed.toLowerCase()
     if (seen.has(norm)) return
     seen.add(norm)
@@ -194,14 +138,14 @@ function extractChoiceOptions(element: Element): string[] {
       const contentEl = optEl.querySelector(OUCHN_OPTION_CONTENT_SELECTOR)
       if (contentEl) {
         const text = cleanText(contentEl.textContent || '')
-        if (text && !PLACEHOLDER_TEXTS.has(text.trim())) {
+        if (text && !isTextPlaceholder(text.trim())) {
           tryPush(text)
           return
         }
       }
       // 其次整个 .option（可能包含 A. + 内容）
       const text = cleanText(optEl.textContent || '')
-      if (text && !PLACEHOLDER_TEXTS.has(text.trim())) {
+      if (text && !isTextPlaceholder(text.trim())) {
         tryPush(text)
       }
     })
@@ -217,7 +161,7 @@ function extractChoiceOptions(element: Element): string[] {
       const flexFill = row.querySelector('.flex-fill')
       if (flexFill) {
         const text = cleanText(flexFill.textContent || '')
-        if (text && !PLACEHOLDER_TEXTS.has(text.trim())) {
+        if (text && !isTextPlaceholder(text.trim())) {
           tryPush(text)
           return
         }
@@ -226,7 +170,7 @@ function extractChoiceOptions(element: Element): string[] {
       const dFlex = row.querySelector('.d-flex')
       if (dFlex) {
         const text = cleanText(dFlex.textContent || '')
-        if (text && !PLACEHOLDER_TEXTS.has(text.trim())) {
+        if (text && !isTextPlaceholder(text.trim())) {
           tryPush(text)
           return
         }
@@ -235,14 +179,14 @@ function extractChoiceOptions(element: Element): string[] {
       const label = row.querySelector('label')
       if (label) {
         const text = cleanText(label.textContent || '')
-        if (text && !PLACEHOLDER_TEXTS.has(text.trim())) {
+        if (text && !isTextPlaceholder(text.trim())) {
           tryPush(text)
           return
         }
       }
       // 最后整个 row（可能包含拆分的 A + 内容）
       const text = cleanText(row.textContent || '')
-      if (text && !PLACEHOLDER_TEXTS.has(text.trim())) {
+      if (text && !isTextPlaceholder(text.trim())) {
         tryPush(text)
       }
     })
@@ -254,7 +198,7 @@ function extractChoiceOptions(element: Element): string[] {
   if (answerLabels.length > 0) {
     answerLabels.forEach(label => {
       const text = cleanText(label.textContent || '')
-      if (text && !PLACEHOLDER_TEXTS.has(text.trim())) {
+      if (text && !isTextPlaceholder(text.trim())) {
         tryPush(text)
       }
     })
@@ -268,7 +212,7 @@ function extractChoiceOptions(element: Element): string[] {
     for (let i = 0; i < children.length; i++) {
       const child = children[i]
       const text = cleanText(child.textContent || '')
-      if (text && !PLACEHOLDER_TEXTS.has(text.trim())) {
+      if (text && !isTextPlaceholder(text.trim())) {
         tryPush(text)
       }
     }
@@ -279,7 +223,7 @@ function extractChoiceOptions(element: Element): string[] {
   const allLabels = element.querySelectorAll('label')
   allLabels.forEach(label => {
     const text = cleanText(label.textContent || '')
-    if (text && !PLACEHOLDER_TEXTS.has(text.trim())) {
+    if (text && !isTextPlaceholder(text.trim())) {
       tryPush(text)
     }
   })
@@ -563,24 +507,7 @@ export class QuizExtractorService {
   }
 
   async copyToClipboard(text: string): Promise<boolean> {
-    try {
-      if (!text) return false
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-        return true
-      }
-      const ta = document.createElement('textarea')
-      ta.value = text
-      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0'
-      document.body.appendChild(ta)
-      ta.focus()
-      ta.select()
-      const ok = document.execCommand('copy')
-      document.body.removeChild(ta)
-      return ok
-    } catch {
-      return false
-    }
+    return copyToClipboard(text)
   }
 }
 

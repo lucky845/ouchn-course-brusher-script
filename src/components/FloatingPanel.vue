@@ -1,7 +1,7 @@
 <template>
   <div
     class="ouchn-brusher"
-    :class="{ dragging: isDraggingFlag, snapping: isSnapping }"
+    :class="{ dragging: isDragging, snapping: isSnapping }"
     :style="{ transform: `translate(${position.x}px, ${position.y}px)` }"
   >
     <!-- 悬浮按钮 (可拖拽) -->
@@ -140,14 +140,28 @@ import { videoManagerService } from '../services/videoManager'
 import { wakeLockService } from '../services/wakeLock'
 import { antiDetectionService } from '../services/antiDetection'
 import { sidebarNavigatorService } from '../services/sidebarNavigator'
+import { useDraggablePanel } from '../composables/useDraggablePanel'
+import { getPanelConfig } from '../utils/panel'
+import { formatDuration } from '../utils/time'
+
+// ===== 面板尺寸（由 utils/panel 统一配置） =====
+const { width: BTN_WIDTH, height: BTN_HEIGHT, margin: MARGIN, dragThreshold: DRAG_THRESHOLD } = getPanelConfig(PanelType.FLOATING)
+
+// ===== 拖拽（由 composable 统一管理） =====
+const {
+  position,
+  isSnapping,
+  isDragging,
+  onDragStart,
+  didDragMove,
+  resetDragMove,
+  snapEdge,
+} = useDraggablePanel(PanelType.FLOATING, BTN_WIDTH, BTN_HEIGHT, MARGIN, DRAG_THRESHOLD)
+// 保留本地引用，供 onMounted 中 edge 判断逻辑使用（无实际重定义冲突）
 
 // ===== 状态 =====
 const isOpen = ref(false)
 const isRunning = ref(false)
-
-// 加载保存的位置
-const savedPosition = settingsStoreService.getPanelPosition(PanelType.FLOATING)
-const position = ref({ x: savedPosition.x, y: savedPosition.y })
 const speedMode = ref<SpeedMode>(SpeedMode.NORMAL)
 const playbackRate = ref(1.5)
 const wakeLockOn = ref(true)
@@ -164,12 +178,6 @@ const stats = reactive({
 })
 
 const logs = reactive<Array<{ time: string; text: string }>>([])
-
-// 拖拽相关
-let isDraggingFlag = false
-let dragOffset = { x: 0, y: 0 }
-let didDragMove = false
-const isSnapping = ref(false)
 
 // 定时器
 let pageTimer: number | null = null
@@ -191,22 +199,6 @@ function log (text: string): void {
   const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
   logs.push({ time: t, text })
   console.log('[刷课脚本]', text)
-}
-
-// 格式化为 "HH时MM分SS秒" / "MM分SS秒"
-function formatDuration (ms: number): string {
-  if (!ms || ms <= 0) return '0秒'
-  const totalSec = Math.floor(ms / 1000)
-  const h = Math.floor(totalSec / 3600)
-  const m = Math.floor((totalSec % 3600) / 60)
-  const s = totalSec % 60
-  if (h > 0) {
-    return `${h}时${String(m).padStart(2, '0')}分${String(s).padStart(2, '0')}秒`
-  }
-  if (m > 0) {
-    return `${m}分${String(s).padStart(2, '0')}秒`
-  }
-  return `${s}秒`
 }
 
 // 从 session 中读取 startTime 并刷新时间显示
@@ -264,95 +256,13 @@ function refreshStats (): void {
   }
 }
 
-// ===== 拖拽 =====
-const BTN_WIDTH = 56
-const BTN_HEIGHT = 56
-const MARGIN = 10
-const DRAG_THRESHOLD = 5
-
-function clamp (val: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, val))
-}
-
-function getBounds () {
-  const ww = window.innerWidth
-  const wh = window.innerHeight
-  return {
-    minX: MARGIN,
-    minY: MARGIN,
-    maxX: ww - BTN_WIDTH - MARGIN,
-    maxY: wh - BTN_HEIGHT - MARGIN,
-  }
-}
-
-function onDragStart (e: MouseEvent): void {
-  // 按下瞬间立即取消吸附动画，让拖拽跟随鼠标
-  isSnapping.value = false
-  // 计算鼠标相对于按钮的偏移
-  dragOffset = { x: e.clientX - position.value.x, y: e.clientY - position.value.y }
-  isDraggingFlag = true
-  didDragMove = false
-
-  document.addEventListener('mousemove', onDragMove)
-  document.addEventListener('mouseup', onDragEnd)
-}
-
-function onDragMove (e: MouseEvent): void {
-  if (!isDraggingFlag) return
-
-  const rawX = e.clientX - dragOffset.x
-  const rawY = e.clientY - dragOffset.y
-
-  // 判断是否超出阈值（超过才算拖拽）
-  if (!didDragMove) {
-    if (Math.abs(rawX - position.value.x) > DRAG_THRESHOLD || Math.abs(rawY - position.value.y) > DRAG_THRESHOLD) {
-      didDragMove = true
-    }
-  }
-
-  const bounds = getBounds()
-  position.value = {
-    x: clamp(rawX, bounds.minX, bounds.maxX),
-    y: clamp(rawY, bounds.minY, bounds.maxY),
-  }
-}
-
-function onDragEnd (): void {
-  isDraggingFlag = false
-  document.removeEventListener('mousemove', onDragMove)
-  document.removeEventListener('mouseup', onDragEnd)
-
-  if (didDragMove) {
-    // === 吸附逻辑：判断靠近左/右边缘 ===
-    const ww = window.innerWidth
-    const centerX = position.value.x + BTN_WIDTH / 2
-    const snapLeft = centerX < ww / 2
-    snapEdge = snapLeft ? PanelEdge.LEFT : PanelEdge.RIGHT
-
-    const bounds = getBounds()
-    const targetX = snapLeft ? bounds.minX : bounds.maxX
-    const targetY = clamp(position.value.y, bounds.minY, bounds.maxY)
-
-    // 启动吸附动画
-    isSnapping.value = true
-    position.value = { x: targetX, y: targetY }
-
-    // 动画结束后保存位置
-    window.setTimeout(() => {
-      isSnapping.value = false
-      settingsStoreService.savePanelPosition(PanelType.FLOATING, position.value.x, position.value.y, snapEdge)
-    }, 280)
-  }
-  // 注意：不要在这里重置 didDragMove，交给 click 事件处理
-  // 因为 mouseup 后紧接着会触发 click 事件，若这里先重置会导致 click 误判
-}
-
+// ===== 点击行为 =====
 function onBtnClick (): void {
   // 只在非拖拽的纯点击行为下切换面板
-  if (!didDragMove) {
+  if (!didDragMove()) {
     isOpen.value = !isOpen.value
   }
-  didDragMove = false
+  resetDragMove()
 }
 
 // ===== 设置切换 =====
@@ -706,23 +616,10 @@ function goToNextItem (): void {
   }
 }
 
-// ===== 生命周期 =====
-let resizeHandler: (() => void) | null = null
-let snapEdge: PanelEdge = PanelEdge.RIGHT
+// ===== 生命周期（位置/吸附/resize 由 composable 管理） =====
 
 onMounted(() => {
   try {
-    // 加载位置 + 决定初始吸附边缘
-    const savedPos = settingsStoreService.getPanelPosition(PanelType.FLOATING)
-    if (savedPos.edge) {
-      snapEdge = savedPos.edge
-    } else {
-      // 若无记录，根据当前位置判断
-      const centerX = savedPos.x + BTN_WIDTH / 2
-      snapEdge = centerX < window.innerWidth / 2 ? PanelEdge.LEFT : PanelEdge.RIGHT
-    }
-    position.value = { x: savedPos.x, y: savedPos.y }
-
     // 加载设置
     const settings = settingsStoreService.get()
     speedMode.value = settings.speedMode
@@ -743,18 +640,6 @@ onMounted(() => {
       setTimeout(() => startBrushing({ resetSession: false }), 1500)
     }
 
-    // 窗口 resize 时重新吸附（比如右侧打开/关闭 F12 控制台）
-    resizeHandler = () => {
-      const bounds = getBounds()
-      // 保持当前吸附边缘
-      const targetX = snapEdge === PanelEdge.LEFT ? bounds.minX : bounds.maxX
-      position.value = {
-        x: targetX,
-        y: clamp(position.value.y, bounds.minY, bounds.maxY),
-      }
-    }
-    window.addEventListener('resize', resizeHandler)
-
     refreshStats()
     log('面板已加载')
   } catch (e) {
@@ -764,11 +649,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearAllTimers()
-  document.removeEventListener('mousemove', onDragMove)
-  document.removeEventListener('mouseup', onDragEnd)
-  if (resizeHandler) {
-    window.removeEventListener('resize', resizeHandler)
-  }
 })
 </script>
 

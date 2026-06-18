@@ -1,26 +1,4 @@
-export interface CourseInfo {
-  name: string
-  progress: number
-  isCompleted: boolean
-  pendingTasks: number
-  credits: number
-  score: number
-  examType: string
-  hasHomework: boolean
-  coverUrl?: string
-  semester?: string
-  viewCourseUrl?: string
-  studyUrl?: string
-  // 保存按钮元素引用，用于模拟点击
-  studyButton?: HTMLButtonElement
-  viewButton?: HTMLButtonElement
-}
-
-export interface SemesterInfo {
-  name: string
-  isCurrent: boolean
-  courses: CourseInfo[]
-}
+import type { CourseInfo, SemesterInfo } from '../types'
 
 export class HomeNavigatorService {
   private semesters: SemesterInfo[] = []
@@ -48,11 +26,19 @@ export class HomeNavigatorService {
       
       console.log('[HomeNavigator] 提取完成，共', this.semesters.length, '个学期')
       this.semesters.forEach(s => {
-        console.log('  -', s.name, '(当前学期:', s.isCurrent, ')', s.courses.length, '门课程')
+        const totalPending = s.courses.reduce((sum, c) => sum + c.pendingTasks, 0)
+        console.log(`  - ${s.name} (当前学期: ${s.isCurrent}, 课程: ${s.courses.length}门, 待办: ${totalPending}项)`)
         s.courses.forEach(c => {
-          console.log('    •', c.name, '- 进度:', c.progress + '%')
+          console.log(`    • ${c.name} - 进度: ${c.progress}%${c.pendingTasks > 0 ? `, 待办: ${c.pendingTasks}` : ''}`)
         })
       })
+      
+      // 调试：输出当前学期的 pendingCount
+      const currentSemester = this.semesters.find(s => s.isCurrent)
+      if (currentSemester) {
+        const pendingCount = currentSemester.courses.reduce((sum, c) => sum + c.pendingTasks, 0)
+        console.log(`[HomeNavigator] 当前学期 pendingCount: ${pendingCount}`)
+      }
     } catch (e) {
       console.warn('[HomeNavigator] 提取学期信息失败', e)
     }
@@ -68,8 +54,9 @@ export class HomeNavigatorService {
     const titleEl = header.querySelector('.card-title, h3, h4, h5, h6')
     const headerText = titleEl?.textContent?.trim() || ''
     
-    // 判断是否为当前学期 - 必须明确包含"本学期"或"当前学期"
-    const isCurrent = headerText.includes('本学期') || headerText.includes('当前学期')
+    // 判断是否为当前学期 - 只检查标题开头是否为"本学期"或"当前学期"
+    const isCurrent = headerText.startsWith('本学期') || headerText.startsWith('当前学期')
+    console.log(`[HomeNavigator] extractFromCard - headerText: "${headerText}", isCurrent: ${isCurrent}`)
     
     // 提取学期名称
     let semesterName = headerText
@@ -170,13 +157,41 @@ export class HomeNavigatorService {
     
     course.isCompleted = course.progress >= 100
     
-    // 提取待完成任务
-    const pendingMatch = text.match(/有(\d+)个作业和测验待完成/)
-    if (pendingMatch) {
-      course.pendingTasks = parseInt(pendingMatch[1])
-      course.hasHomework = true
-    } else if (text.includes('无可提交作业')) {
-      course.pendingTasks = 0
+    // 提取待完成任务 - 优先从 class="card-body-status" 的元素中提取
+    const statusEl = body.querySelector('.card-body-status')
+    if (statusEl) {
+      const statusText = statusEl.textContent?.trim() || ''
+      console.log(`[HomeNavigator] 课程 "${course.name}" statusText: "${statusText}"`)
+      
+      if (statusText.includes('无可提交作业')) {
+        course.pendingTasks = 0
+      } else {
+        const pendingMatch = statusText.match(/有\s*([1-9]\d?)\s*个(?:作业(?:和测验)?|测验)\s*(?:待|未)完成/)
+        if (pendingMatch) {
+          const pendingCount = parseInt(pendingMatch[1])
+          if (pendingCount > 0 && pendingCount <= 10) {
+            course.pendingTasks = pendingCount
+            course.hasHomework = true
+            console.log(`[HomeNavigator] 课程 "${course.name}" 匹配到待办任务: "${pendingMatch[0]}" -> ${course.pendingTasks}`)
+          }
+        }
+      }
+    } else {
+      // 降级方案：从整个文本中提取
+      const text = body.textContent || ''
+      if (text.includes('无可提交作业')) {
+        course.pendingTasks = 0
+      } else {
+        const pendingMatch = text.match(/有\s*([1-9]\d?)\s*个(?:作业(?:和测验)?|测验)\s*(?:待|未)完成/)
+        if (pendingMatch) {
+          const pendingCount = parseInt(pendingMatch[1])
+          if (pendingCount > 0 && pendingCount <= 10) {
+            course.pendingTasks = pendingCount
+            course.hasHomework = true
+            console.log(`[HomeNavigator] 课程 "${course.name}" (降级) 匹配到待办任务: "${pendingMatch[0]}" -> ${course.pendingTasks}`)
+          }
+        }
+      }
     }
     
     // 保存按钮元素引用，用于模拟点击跳转
@@ -385,14 +400,14 @@ export class HomeNavigatorService {
   }
 
   private findPendingTasks(text: string): number {
-    const match = text.match(/(\d+)\s*个作业和测验待完成/)
+    // 使用严格的正则：必须以"有"开头，只匹配"作业"或"测验"的待办提示
+    const match = text.match(/有\s*([1-9]\d?)\s*个(?:作业(?:和测验)?|测验)\s*(?:待|未)完成/)
     if (match) {
-      return parseInt(match[1])
-    }
-    
-    const singleMatch = text.match(/(\d+)\s*个作业/)
-    if (singleMatch) {
-      return parseInt(singleMatch[1])
+      const pendingCount = parseInt(match[1])
+      // 验证：待办任务数应该在合理范围内（1-10）
+      if (pendingCount > 0 && pendingCount <= 10) {
+        return pendingCount
+      }
     }
     
     return 0

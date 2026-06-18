@@ -1,9 +1,9 @@
 import type { ProgressStats } from '../types'
+import { settingsStoreService } from './settingsStore'
+import { formatDuration } from '../utils/time'
 
 class ProgressStatsService {
-  private sessionStats = { startTime: Date.now(), itemsCompleted: 0 }
-
-  getStats(sidebar: Element | null, courseItems: HTMLLinkElement[]): ProgressStats {
+  getStats (sidebar: Element | null, courseItems: HTMLLinkElement[]): ProgressStats {
     try {
       const sidebarItems = sidebar ? sidebar.querySelectorAll('a, li, .item') : []
       const total = sidebar ? sidebarItems.length : courseItems.length
@@ -26,69 +26,29 @@ class ProgressStatsService {
         }
       }
       const percentage = total > 0 ? Math.round((current / total) * 100) : 0
-      const sessionTime = Date.now() - this.sessionStats.startTime
+      const session = settingsStoreService.sessionGet()
+      const sessionTime = session.startTime > 0 ? Date.now() - session.startTime : 0
       return {
         total,
         current,
         percentage,
         sessionTime,
-        itemsCompleted: this.sessionStats.itemsCompleted,
+        itemsCompleted: session.itemsDone,
       }
-    } catch (e) {
+    } catch {
+      const session = settingsStoreService.sessionGet()
       return {
         total: courseItems.length,
         current: 0,
         percentage: 0,
-        sessionTime: Date.now() - this.sessionStats.startTime,
-        itemsCompleted: this.sessionStats.itemsCompleted,
+        sessionTime: session.startTime > 0 ? Date.now() - session.startTime : 0,
+        itemsCompleted: session.itemsDone,
       }
     }
   }
 
-  formatTime(ms: number): string {
-    try {
-      const totalSeconds = Math.floor(ms / 1000)
-      const hours = Math.floor(totalSeconds / 3600)
-      const minutes = Math.floor((totalSeconds % 3600) / 60)
-      const seconds = totalSeconds % 60
-      if (hours > 0) {
-        return `${hours}小时${minutes}分`
-      }
-      if (minutes > 0) {
-        return `${minutes}分${seconds}秒`
-      }
-      return `${seconds}秒`
-    } catch (e) {
-      return '0秒'
-    }
-  }
-
-  incrementItemsCompleted(): void {
-    try {
-      this.sessionStats.itemsCompleted++
-    } catch (e) {
-      console.error('incrementItemsCompleted error', e)
-    }
-  }
-
-  getSessionStats(): { startTime: number; itemsCompleted: number } {
-    try {
-      return {
-        startTime: this.sessionStats.startTime,
-        itemsCompleted: this.sessionStats.itemsCompleted,
-      }
-    } catch (e) {
-      return { startTime: Date.now(), itemsCompleted: 0 }
-    }
-  }
-
-  resetSession(): void {
-    try {
-      this.sessionStats.startTime = Date.now()
-      this.sessionStats.itemsCompleted = 0
-    } catch (e) {
-      console.error('resetSession error', e)
-    }
+  formatTime (ms: number): string {
+    return formatDuration(ms)
   }
 }
 

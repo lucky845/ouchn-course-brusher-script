@@ -99,3 +99,27 @@ export interface WakeLockState {
   enabled: boolean
   reAcquireTimer: number | null
 }
+
+// ===== 首页/学期/课程信息 =====
+export interface CourseInfo {
+  name: string
+  progress: number
+  isCompleted: boolean
+  pendingTasks: number
+  credits: number
+  score: number
+  examType: string
+  hasHomework: boolean
+  coverUrl?: string
+  semester?: string
+  viewCourseUrl?: string
+  studyUrl?: string
+  studyButton?: HTMLButtonElement
+  viewButton?: HTMLButtonElement
+}
+
+export interface SemesterInfo {
+  name: string
+  isCurrent: boolean
+  courses: CourseInfo[]
+}
