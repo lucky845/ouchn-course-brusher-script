@@ -1,11 +1,18 @@
-import type { Settings, PanelEdge, PanelType } from '../types'
-import { SpeedMode } from '../types'
+import type { Settings } from '../types'
+import { PanelEdge, PanelType, SpeedMode } from '../types'
+import {
+  writeStorage,
+  readStorage,
+  readStorageString,
+  writeStorageString,
+  readStorageRecord,
+  removeStorage,
+} from '../utils/storage'
 
 export { SpeedMode }
 
 const STORAGE_KEY = 'ouchn_brusher_settings_v2'
 const ENABLED_KEY = 'ouchn_brusher_enabled'
-const POSITION_KEY = 'ouchn_brusher_position'
 const SESSION_KEY = 'ouchn_brusher_session' // 本次刷课：startTime + itemsDone
 const PANEL_POSITIONS_KEY = 'ouchn_panel_positions' // 所有面板位置
 
@@ -24,114 +31,76 @@ export const SPEED_MODES: Record<SpeedMode, { videoCheck: number; pageWait: numb
   [SpeedMode.STEALTH]: { videoCheck: 30000, pageWait: 15000 },
 }
 
+/** 校验读取到的对象是否符合 Settings 基本结构 */
+function isValidSettings (data: unknown): data is Partial<Settings> {
+  return data !== null && typeof data === 'object'
+}
+
+/** 校验读取到的对象是否符合 session 结构 */
+function isValidSession (data: unknown): data is { startTime: number; itemsDone: number } {
+  return (
+    data !== null &&
+    typeof data === 'object' &&
+    typeof (data as any).startTime === 'number' &&
+    typeof (data as any).itemsDone === 'number'
+  )
+}
+
+/** 校验读取到的对象是否符合面板位置结构 */
+function isValidPanelPos (data: unknown): data is { y: number; edge: PanelEdge } {
+  if (data === null || typeof data !== 'object') return false
+  const d = data as any
+  return (
+    typeof d.y === 'number' &&
+    (d.edge === PanelEdge.LEFT || d.edge === PanelEdge.RIGHT || d.edge === PanelEdge.NONE)
+  )
+}
+
 export class SettingsStoreService {
   private settings: Settings = { ...DEFAULT_SETTINGS }
   private listeners: Set<(settings: Settings) => void> = new Set()
 
-  constructor() {
+  constructor () {
     this.settings = this.load()
   }
 
-  load(): Settings {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (!raw) {
-        return { ...DEFAULT_SETTINGS }
-      }
-      const parsed = JSON.parse(raw)
-      if (parsed && typeof parsed === 'object') {
-        return { ...DEFAULT_SETTINGS, ...parsed }
-      }
-    } catch (e) {
-      console.warn('Failed to load settings from localStorage', e)
-    }
-    return { ...DEFAULT_SETTINGS }
+  load (): Settings {
+    const parsed = readStorage<Partial<Settings>>(STORAGE_KEY, {}, isValidSettings)
+    return { ...DEFAULT_SETTINGS, ...parsed }
   }
 
-  save(newSettings: Partial<Settings>): void {
-    try {
-      this.settings = { ...this.settings, ...newSettings }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings))
-      this.listeners.forEach((listener) => {
-        try {
-          listener({ ...this.settings })
-        } catch (e) {
-          console.warn('Listener error in settings save', e)
-        }
-      })
-    } catch (e) {
-      console.warn('Failed to save settings to localStorage', e)
-    }
+  save (newSettings: Partial<Settings>): void {
+    this.settings = { ...this.settings, ...newSettings }
+    writeStorage(STORAGE_KEY, this.settings)
+    this.listeners.forEach((listener) => {
+      try {
+        listener({ ...this.settings })
+      } catch (e) {
+        console.warn('Listener error in settings save', e)
+      }
+    })
   }
 
-  get(): Settings {
+  get (): Settings {
     return { ...this.settings }
   }
 
-  isEnabled(): boolean {
-    try {
-      const value = localStorage.getItem(ENABLED_KEY)
-      return value !== 'false'
-    } catch (e) {
-      console.warn('Failed to read enabled key', e)
-      return true
-    }
+  isEnabled (): boolean {
+    return readStorageString(ENABLED_KEY) !== 'false'
   }
 
-  setEnabled(enabled: boolean): void {
-    try {
-      localStorage.setItem(ENABLED_KEY, enabled ? 'true' : 'false')
-    } catch (e) {
-      console.warn('Failed to save enabled key', e)
-    }
+  setEnabled (enabled: boolean): void {
+    writeStorageString(ENABLED_KEY, enabled ? 'true' : 'false')
   }
 
-  setPosition(x: number, y: number, edge: string): void {
-    try {
-      localStorage.setItem(
-        POSITION_KEY,
-        JSON.stringify({ x, y, edge })
-      )
-    } catch (e) {
-      console.warn('Failed to save position', e)
-    }
-  }
-
-  getPosition(): { x: number; y: number; edge?: PanelEdge } {
-    try {
-      const raw = localStorage.getItem(POSITION_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (parsed && typeof parsed === 'object' && 'x' in parsed && 'y' in parsed) {
-          const edgeValue = parsed.edge
-          const edge: PanelEdge | undefined = 
-            (edgeValue === 'left' || edgeValue === 'right' || edgeValue === 'none') 
-              ? edgeValue as PanelEdge 
-              : undefined
-          return {
-            x: Number(parsed.x) || 0,
-            y: Number(parsed.y) || 0,
-            edge,
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to read position', e)
-    }
-    return {
-      x: typeof window !== 'undefined' ? window.innerWidth - 60 : 100,
-      y: 100,
-    }
-  }
-
-  subscribe(listener: (settings: Settings) => void): () => void {
+  subscribe (listener: (settings: Settings) => void): () => void {
     this.listeners.add(listener)
     return () => {
       this.listeners.delete(listener)
     }
   }
 
-  setSpeedMode(mode: SpeedMode): void {
+  setSpeedMode (mode: SpeedMode): void {
     const config = SPEED_MODES[mode]
     if (!config) {
       console.warn(`Unknown speed mode: ${mode}`)
@@ -145,108 +114,70 @@ export class SettingsStoreService {
   }
 
   // ===== 本次刷课 session 存储（跨页面跳转保持） =====
-  sessionReset(): void {
-    try {
-      const now = Date.now()
-      localStorage.setItem(
-        SESSION_KEY,
-        JSON.stringify({ startTime: now, itemsDone: 0 })
-      )
-    } catch (e) {
-      console.warn('Failed to reset session', e)
-    }
+  sessionReset (): void {
+    writeStorage(SESSION_KEY, { startTime: Date.now(), itemsDone: 0 })
   }
 
-  sessionGet(): { startTime: number; itemsDone: number } {
-    try {
-      const raw = localStorage.getItem(SESSION_KEY)
-      if (!raw) return { startTime: 0, itemsDone: 0 }
-      const parsed = JSON.parse(raw)
-      return {
-        startTime: Number(parsed.startTime) || 0,
-        itemsDone: Number(parsed.itemsDone) || 0,
-      }
-    } catch (e) {
-      console.warn('Failed to read session', e)
-      return { startTime: 0, itemsDone: 0 }
-    }
-  }
-
-  sessionIncrementItems(): number {
-    try {
-      const cur = this.sessionGet()
-      const next = Math.max(0, cur.itemsDone) + 1
-      const startTime = cur.startTime > 0 ? cur.startTime : Date.now()
-      localStorage.setItem(
-        SESSION_KEY,
-        JSON.stringify({ startTime, itemsDone: next })
-      )
-      return next
-    } catch (e) {
-      console.warn('Failed to increment session items', e)
-      return 0
-    }
-  }
-
-  sessionSetItems(count: number): void {
-    try {
-      const cur = this.sessionGet()
-      const startTime = cur.startTime > 0 ? cur.startTime : Date.now()
-      localStorage.setItem(
-        SESSION_KEY,
-        JSON.stringify({ startTime, itemsDone: Math.max(0, count) })
-      )
-    } catch (e) {
-      console.warn('Failed to set session items', e)
-    }
-  }
-
-  sessionClear(): void {
-    try {
-      localStorage.removeItem(SESSION_KEY)
-    } catch (e) {
-      console.warn('Failed to clear session', e)
-    }
-  }
-
-  // ===== 面板位置存储（支持多个面板独立记忆） =====
-  savePanelPosition(panelType: PanelType, x: number, y: number, edge?: PanelEdge): void {
-    try {
-      const raw = localStorage.getItem(PANEL_POSITIONS_KEY)
-      const positions: Record<string, { x: number; y: number; edge?: PanelEdge }> = raw ? JSON.parse(raw) : {}
-      positions[panelType] = { x, y, edge }
-      localStorage.setItem(PANEL_POSITIONS_KEY, JSON.stringify(positions))
-    } catch (e) {
-      console.warn('Failed to save panel position', e)
-    }
-  }
-
-  getPanelPosition(panelType: PanelType): { x: number; y: number; edge?: PanelEdge } {
-    try {
-      const raw = localStorage.getItem(PANEL_POSITIONS_KEY)
-      if (raw) {
-        const positions = JSON.parse(raw)
-        const pos = positions[panelType]
-        if (pos && typeof pos === 'object' && 'x' in pos && 'y' in pos) {
-          const edgeValue = pos.edge
-          const edge: PanelEdge | undefined = 
-            (edgeValue === 'left' || edgeValue === 'right' || edgeValue === 'none') 
-              ? edgeValue as PanelEdge 
-              : undefined
-          return {
-            x: Number(pos.x) || 0,
-            y: Number(pos.y) || 0,
-            edge,
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to read panel position', e)
-    }
-    // 返回默认位置
+  sessionGet (): { startTime: number; itemsDone: number } {
+    const raw = readStorage<{ startTime: number; itemsDone: number }>(
+      SESSION_KEY,
+      { startTime: 0, itemsDone: 0 },
+      isValidSession,
+    )
     return {
-      x: typeof window !== 'undefined' ? window.innerWidth - 60 : 100,
+      startTime: Number(raw.startTime) || 0,
+      itemsDone: Number(raw.itemsDone) || 0,
+    }
+  }
+
+  sessionIncrementItems (): number {
+    const cur = this.sessionGet()
+    const next = Math.max(0, cur.itemsDone) + 1
+    const startTime = cur.startTime > 0 ? cur.startTime : Date.now()
+    writeStorage(SESSION_KEY, { startTime, itemsDone: next })
+    return next
+  }
+
+  sessionSetItems (count: number): void {
+    const cur = this.sessionGet()
+    const startTime = cur.startTime > 0 ? cur.startTime : Date.now()
+    writeStorage(SESSION_KEY, { startTime, itemsDone: Math.max(0, count) })
+  }
+
+  sessionClear (): void {
+    removeStorage(SESSION_KEY)
+  }
+
+  // ===== 面板位置存储（只记忆边缘吸附状态和Y轴位置，X轴动态计算） =====
+  savePanelPosition (panelType: PanelType, y: number, edge: PanelEdge): void {
+    const positions = readStorageRecord<{ y: number; edge: PanelEdge }>(PANEL_POSITIONS_KEY)
+    positions[panelType] = { y, edge }
+    writeStorage(PANEL_POSITIONS_KEY, positions)
+  }
+
+  getPanelPosition (
+    panelType: PanelType,
+    btnWidth: number = 56,
+    margin: number = 10,
+  ): { x: number; y: number; edge: PanelEdge } {
+    const positions = readStorageRecord<unknown>(PANEL_POSITIONS_KEY)
+    const pos = positions[panelType]
+    if (isValidPanelPos(pos)) {
+      const edge: PanelEdge = pos.edge === PanelEdge.NONE ? PanelEdge.RIGHT : pos.edge
+      const y = Number(pos.y) || 100
+      const x =
+        typeof window !== 'undefined'
+          ? edge === PanelEdge.LEFT
+            ? margin
+            : window.innerWidth - btnWidth - margin
+          : 100
+      return { x, y, edge }
+    }
+    // 默认位置：右侧贴边
+    return {
+      x: typeof window !== 'undefined' ? window.innerWidth - btnWidth - margin : 100,
       y: 100,
+      edge: PanelEdge.RIGHT,
     }
   }
 }

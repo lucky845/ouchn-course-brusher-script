@@ -1,7 +1,7 @@
 <template>
   <div
     class="quiz-panel"
-    :class="{ dragging: isDraggingFlag, snapping: isSnapping }"
+    :class="{ dragging: isDragging, snapping: isSnapping }"
     :style="{ transform: `translate(${position.x}px, ${position.y}px)` }"
   >
     <!-- 悬浮按钮 -->
@@ -87,17 +87,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { quizExtractorService } from '../services/quizExtractor'
-import { settingsStoreService } from '../services/settingsStore'
-import { PanelType, PanelEdge, type Question } from '../types'
+import { PanelType, type Question } from '../types'
+import { useDraggablePanel } from '../composables/useDraggablePanel'
+import { getPanelConfig } from '../utils/panel'
 
+// ===== 面板尺寸（由 utils/panel 统一配置） =====
+const { width: BTN_WIDTH, height: BTN_HEIGHT, margin: MARGIN, dragThreshold: DRAG_THRESHOLD } = getPanelConfig(PanelType.QUIZ)
+
+// ===== 拖拽（由 composable 统一管理） =====
+const {
+  position,
+  isSnapping,
+  isDragging,
+  onDragStart,
+  didDragMove,
+  resetDragMove,
+} = useDraggablePanel(PanelType.QUIZ, BTN_WIDTH, BTN_HEIGHT, MARGIN, DRAG_THRESHOLD)
+
+// ===== 状态 =====
 const isOpen = ref(false)
-const isSnapping = ref(false)
-
-// 加载保存的位置
-const savedPosition = settingsStoreService.getPanelPosition(PanelType.QUIZ)
-const position = ref({ x: savedPosition.x, y: savedPosition.y })
 const statusText = ref('点击按钮开始提取题目')
 
 const result = reactive<{
@@ -110,19 +120,7 @@ const result = reactive<{
 
 const logs = reactive<Array<{ time: string; text: string }>>([])
 
-// 拖拽常量
-const BTN_WIDTH = 56
-const BTN_HEIGHT = 56
-const MARGIN = 10
-const DRAG_THRESHOLD = 5
-
-// 拖拽状态
-let isDraggingFlag = false
-let dragOffset = { x: 0, y: 0 }
-let didDragMove = false
-let snapEdge: PanelEdge = PanelEdge.RIGHT
-let resizeHandler: (() => void) | null = null
-
+// ===== 工具 =====
 function log (text: string): void {
   const d = new Date()
   const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
@@ -130,79 +128,12 @@ function log (text: string): void {
   console.log('[答题助手]', text)
 }
 
-function clamp (val: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, val))
-}
-
-function getBounds () {
-  const ww = window.innerWidth
-  const wh = window.innerHeight
-  return {
-    minX: MARGIN,
-    minY: MARGIN,
-    maxX: ww - BTN_WIDTH - MARGIN,
-    maxY: wh - BTN_HEIGHT - MARGIN,
-  }
-}
-
-function onDragStart (e: MouseEvent): void {
-  isSnapping.value = false
-  dragOffset = { x: e.clientX - position.value.x, y: e.clientY - position.value.y }
-  isDraggingFlag = true
-  didDragMove = false
-  document.addEventListener('mousemove', onDragMove)
-  document.addEventListener('mouseup', onDragEnd)
-}
-
-function onDragMove (e: MouseEvent): void {
-  if (!isDraggingFlag) return
-
-  const rawX = e.clientX - dragOffset.x
-  const rawY = e.clientY - dragOffset.y
-
-  if (!didDragMove) {
-    if (Math.abs(rawX - position.value.x) > DRAG_THRESHOLD || Math.abs(rawY - position.value.y) > DRAG_THRESHOLD) {
-      didDragMove = true
-    }
-  }
-
-  const bounds = getBounds()
-  position.value = {
-    x: clamp(rawX, bounds.minX, bounds.maxX),
-    y: clamp(rawY, bounds.minY, bounds.maxY),
-  }
-}
-
-function onDragEnd (): void {
-  isDraggingFlag = false
-  document.removeEventListener('mousemove', onDragMove)
-  document.removeEventListener('mouseup', onDragEnd)
-
-  if (didDragMove) {
-    const ww = window.innerWidth
-    const centerX = position.value.x + BTN_WIDTH / 2
-    const snapLeft = centerX < ww / 2
-    snapEdge = snapLeft ? PanelEdge.LEFT : PanelEdge.RIGHT
-
-    const bounds = getBounds()
-    const targetX = snapLeft ? bounds.minX : bounds.maxX
-    const targetY = clamp(position.value.y, bounds.minY, bounds.maxY)
-
-    isSnapping.value = true
-    position.value = { x: targetX, y: targetY }
-    window.setTimeout(() => {
-      isSnapping.value = false
-      settingsStoreService.savePanelPosition(PanelType.QUIZ, position.value.x, position.value.y, snapEdge)
-    }, 280)
-  }
-  // 注意：不在此处重置 didDragMove，交给 click 事件处理
-}
-
+// ===== 点击行为 =====
 function onBtnClick (): void {
-  if (!didDragMove) {
+  if (!didDragMove()) {
     isOpen.value = !isOpen.value
   }
-  didDragMove = false
+  resetDragMove()
 }
 
 async function handleExtract (mode: 'smart' | 'brute' | 'ultra'): Promise<void> {
@@ -265,28 +196,9 @@ async function copyResult (): Promise<void> {
 
 onMounted(() => {
   try {
-    // 窗口 resize 时重新吸附
-    resizeHandler = () => {
-      const bounds = getBounds()
-      const targetX = snapEdge === PanelEdge.LEFT ? bounds.minX : bounds.maxX
-      position.value = {
-        x: targetX,
-        y: clamp(position.value.y, bounds.minY, bounds.maxY),
-      }
-    }
-    window.addEventListener('resize', resizeHandler)
-
     log('答题助手已加载')
   } catch (e) {
     console.warn('[答题助手] 初始化失败', e)
-  }
-})
-
-onUnmounted(() => {
-  document.removeEventListener('mousemove', onDragMove)
-  document.removeEventListener('mouseup', onDragEnd)
-  if (resizeHandler) {
-    window.removeEventListener('resize', resizeHandler)
   }
 })
 </script>

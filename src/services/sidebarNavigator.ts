@@ -1,4 +1,5 @@
 import { NAV_ITEM_SELECTORS } from './constants'
+import { parseQueryParams, getBasePath } from '../utils/url'
 
 const MOD_URL_MARKER = '/mod/'
 
@@ -132,39 +133,6 @@ export class SidebarNavigatorService {
   }
 
   /**
-   * 解析 URL 中的关键参数（简化，避免异常）
-   */
-  private parseUrlParams (href: string): Record<string, string> {
-    const params: Record<string, string> = {}
-    const qIndex = href.indexOf('?')
-    if (qIndex === -1) return params
-    const hashIndex = href.indexOf('#')
-    const end = hashIndex === -1 ? href.length : hashIndex
-    const query = href.substring(qIndex + 1, end)
-    if (!query) return params
-    const parts = query.split('&')
-    for (let i = 0; i < parts.length; i++) {
-      const kv = parts[i]
-      if (!kv) continue
-      const eq = kv.indexOf('=')
-      if (eq === -1) {
-        params[decodeURIComponent(kv)] = ''
-      } else {
-        params[decodeURIComponent(kv.substring(0, eq))] = decodeURIComponent(kv.substring(eq + 1))
-      }
-    }
-    return params
-  }
-
-  private getBasePath (href: string): string {
-    const qIndex = href.indexOf('?')
-    const hIndex = href.indexOf('#')
-    const end0 = qIndex === -1 ? href.length : qIndex
-    const end1 = hIndex === -1 ? end0 : hIndex
-    return href.substring(0, end1)
-  }
-
-  /**
    * 从活动列表中查找当前页的索引
    */
   findCurrentIndex (items: NavItem[]): number {
@@ -173,8 +141,8 @@ export class SidebarNavigatorService {
       if (typeof window === 'undefined' || !window.location) return -1
 
       const currentHref = window.location.href
-      const currentParams = this.parseUrlParams(currentHref)
-      const currentBase = this.getBasePath(currentHref)
+      const currentParams = parseQueryParams(currentHref)
+      const currentBase = getBasePath(currentHref)
 
       // 策略 1：完全匹配
       for (let i = 0; i < items.length; i++) {
@@ -189,7 +157,7 @@ export class SidebarNavigatorService {
       if (currentId) {
         for (let i = 0; i < items.length; i++) {
           try {
-            const itemParams = this.parseUrlParams(items[i].href)
+            const itemParams = parseQueryParams(items[i].href)
             const itemId = itemParams['id']
             if (itemId && itemId === currentId) return i
           } catch {
@@ -200,7 +168,7 @@ export class SidebarNavigatorService {
       // 策略 3：路径部分一致（忽略参数）
       for (let i = 0; i < items.length; i++) {
         try {
-          const itemBase = this.getBasePath(items[i].href)
+          const itemBase = getBasePath(items[i].href)
           if (itemBase && currentBase && itemBase === currentBase) return i
         } catch {
         }
@@ -283,7 +251,7 @@ export class SidebarNavigatorService {
       if (typeof document === 'undefined') return null
 
       const currentHref = window.location.href
-      const currentParams = this.parseUrlParams(currentHref)
+      const currentParams = parseQueryParams(currentHref)
 
       // 策略 1：从 breadcrumb 找
       const breadcrumbSelectors = NAV_ITEM_SELECTORS.breadcrumbSelectors

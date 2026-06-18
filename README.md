@@ -2,6 +2,8 @@
 
 基于 Vue 3 + TypeScript 重构的油猴脚本，适用于国家开放大学实验学院的 Moodle 平台。（个人自用）
 
+**当前版本**：v2.1.1
+
 ## 功能特点
 
 ### 刷课功能
@@ -109,63 +111,46 @@
 ```
 course-brushing-script/
 ├── src/
-│   ├── main.ts                    # Vue 入口，页面路由判断
-│   ├── components/
-│   │   ├── FloatingPanel.vue      # 刷课控制面板
-│   │   ├── HomePanel.vue          # 课程管理面板
-│   │   └── QuizPanel.vue          # 答题助手面板
-│   ├── services/
-│   │   ├── videoManager.ts        # 视频播放管理
-│   │   ├── sidebarNavigator.ts    # 侧边栏导航
-│   │   ├── homeNavigator.ts       # 课程管理导航
-│   │   ├── quizExtractor.ts      # 题目提取
-│   │   ├── settingsStore.ts       # 配置持久化
-│   │   ├── wakeLock.ts           # 防息屏
-│   │   └── antiDetection.ts       # 防检测
-│   └── types/
-│       └── index.ts               # TypeScript 类型定义
-├── .github/workflows/              # GitHub Actions
-│   └── build-release.yml          # 构建发布流程
-└── ouchn-course-brusher-vue.user.js  # 构建产物
+│   ├── main.ts                      # 入口：页面路由判断、初始化
+│   ├── bootstrap.ts                 # 启动流程：面板调度、延迟初始化
+│   ├── components/                  # Vue 组件
+│   │   ├── FloatingPanel.vue        # 刷课控制面板
+│   │   ├── HomePanel.vue            # 课程管理面板
+│   │   └── QuizPanel.vue            # 答题助手面板
+│   ├── composables/                 # 组合式函数
+│   │   └── useDraggablePanel.ts     # 拖拽/吸附逻辑复用
+│   ├── services/                    # 业务服务
+│   │   ├── videoManager.ts          # 视频播放管理
+│   │   ├── sidebarNavigator.ts      # 侧边栏导航
+│   │   ├── homeNavigator.ts         # 课程管理导航
+│   │   ├── quizExtractor.ts         # 题目提取
+│   │   ├── settingsStore.ts         # 配置持久化
+│   │   ├── progressStats.ts         # 进度统计
+│   │   ├── wakeLock.ts              # 防息屏
+│   │   ├── antiDetection.ts         # 防检测
+│   │   └── constants.ts             # 常量定义
+│   ├── types/                       # 类型定义
+│   │   └── index.ts                 # 集中管理所有类型
+│   └── utils/                       # 工具函数
+│       ├── url.ts                   # URL 解析、页面判断
+│       ├── text.ts                  # 文本清理、占位符判断
+│       ├── time.ts                  # 时间格式化
+│       ├── math.ts                  # 数学计算
+│       ├── clipboard.ts             # 剪贴板操作
+│       ├── storage.ts               # localStorage 安全读写
+│       └── panel.ts                 # 面板配置统一管理
+├── .github/workflows/               # GitHub Actions
+│   └── build-release.yml            # 构建发布流程
+├── AGENTS.md                        # AI 代理开发指南
+├── CHANGELOG.md                     # 更新日志
+├── README.md                        # 项目说明
+├── SECURITY.md                      # 安全说明
+└── dist/ouchn-course-brusher-vue.user.js  # 构建产物
 ```
 
 ## 更新日志
 
-### v2.1.0 (2026-06-17)
-
-**课程管理与位置记忆**
-
-- 📚 **多学期课程展示**：新增课程管理面板，支持展示所有学期课程
-- 📊 **学期统计卡片**：显示已完成/待办/总进度等统计信息
-- 🎯 **粘性标题**：滚动时学期标题自动吸顶，方便快速定位
-- 🔄 **课程刷新**：一键刷新课程列表
-- 📖 **快捷导航**：快速跳转到刷课中心
-- 💾 **位置记忆**：所有面板自动保存位置，刷新后恢复上次位置
-- 🎨 **UI 优化**：优化课程列表布局，按钮大小统一
-
-
-### v2.0.0 (2026-06-17)
-
-**Vue 3 重构**
-
-- 🎨 **Vue 3 + Composition API**：使用 `<script setup>` 重构，响应式状态管理
-- 📦 **TypeScript**：完整类型定义，编译时检查
-- 🔧 **模块化架构**：刷课逻辑、题目提取、配置管理分离为独立服务
-- 🖱️ **拖拽改进**：修复拖拽边界计算，新增边缘吸附动画
-- 🐛 **刷课跳转修复**：新增"下一个活动"导航识别、多级 fallback 策略
-- 💾 **刷课统计持久化**：本次刷课数量和持续时间跨页面保持
-- ⏱️ **刷课计时显示**：实时显示本次刷课持续时长
-- 📝 **题型检测重写**：优先识别 `.summary-sub-title` 可见文字，再降级 class 匹配
-- 🔢 **多小题拆分**：综合题自动拆分为独立子题（parentIndex * 1000 + subIndex 编码）
-- 📋 **答题面板同步修复**：拖拽逻辑与刷课面板保持一致
-
-### v1.7.3 (2026-06-17)
-- 🎯 **题型识别增强**：新增完形填空、拖放匹配、排序题等识别
-- 🔍 **class 识别**：支持 `cloze`、`gapselect`、`ddwtos` 等 class
-
-### v1.7.0 (2026-06-03)
-- 📝 **答题页面识别**：自动识别答题页面
-- 📋 **题目提取功能**：一键提取页面所有题目
+完整更新日志请查看 [CHANGELOG.md](file:///Users/lucky845/workspace/MyWorkspace/WebProjects/course-brushing-script/CHANGELOG.md)。
 
 ## 注意事项
 

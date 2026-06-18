@@ -1,7 +1,7 @@
 <template>
   <div
     class="home-brusher"
-    :class="{ dragging: isDraggingFlag, snapping: isSnapping, expanded: isExpanded }"
+    :class="{ dragging: isDragging, snapping: isSnapping, expanded: isExpanded }"
     :style="{ transform: `translate(${position.x}px, ${position.y}px)` }"
   >
     <div
@@ -116,27 +116,32 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { homeNavigatorService, type CourseInfo, type SemesterInfo } from '../services/homeNavigator'
-import { settingsStoreService } from '../services/settingsStore'
-import { PanelType, PanelEdge } from '../types'
+import { homeNavigatorService } from '../services/homeNavigator'
+import { PanelType, type CourseInfo, type SemesterInfo } from '../types'
+import { useDraggablePanel } from '../composables/useDraggablePanel'
+import { getPanelConfig } from '../utils/panel'
 
+// ===== 面板尺寸（由 utils/panel 统一配置） =====
+const { width: BTN_WIDTH, height: BTN_HEIGHT, margin: MARGIN, dragThreshold: DRAG_THRESHOLD } = getPanelConfig(PanelType.COURSE)
+
+// ===== 拖拽（由 composable 统一管理） =====
+const {
+  position,
+  isSnapping,
+  isDragging,
+  onDragStart,
+  didDragMove,
+  resetDragMove,
+} = useDraggablePanel(PanelType.COURSE, BTN_WIDTH, BTN_HEIGHT, MARGIN, DRAG_THRESHOLD)
+
+// ===== 状态 =====
 const isExpanded = ref(false)
-
-// 加载保存的位置
-const savedPosition = settingsStoreService.getPanelPosition(PanelType.COURSE)
-const position = ref({ x: savedPosition.x, y: savedPosition.y })
 const semesters = ref<SemesterInfo[]>([])
 const expandedSemesters = ref<Record<string, boolean>>({})
-
-let isDraggingFlag = false
-let dragOffset = { x: 0, y: 0 }
-let didDragMove = false
-const isSnapping = ref(false)
-
-const BTN_WIDTH = 44
-const BTN_HEIGHT = 44
-const MARGIN = 10
-const DRAG_THRESHOLD = 5
+let retryTimer: ReturnType<typeof setTimeout> | null = null
+let retryCount = 0
+const MAX_RETRIES = 10
+const RETRY_INTERVAL = 400
 
 const currentSemesterCourses = computed(() => {
   const currentSemester = semesters.value.find(s => s.isCurrent)
@@ -153,18 +158,73 @@ const overallProgress = computed(() => {
 })
 
 function refreshCourses(): void {
+  // 第一步：检测 DOM 是否有课程标记
+  const hasCourseMarkers = (() => {
+    if (typeof document === 'undefined') return false
+    // 关键：必须有 .card-body-status 元素才认为数据已加载
+    if (document.querySelector('.card-body-status')) return true
+    if (document.querySelector('.course-title')) return true
+    if (document.querySelector('.progress-bar')) return true
+    if (document.querySelector('button')) {
+      const buttons = document.querySelectorAll('button')
+      for (let i = 0; i < buttons.length; i++) {
+        const txt = buttons[i].textContent?.trim() || ''
+        if (txt.includes('查看课程') || txt.includes('去学习')) return true
+      }
+    }
+    return false
+  })()
+
+  if (!hasCourseMarkers && retryCount < MAX_RETRIES) {
+    if (retryTimer) clearTimeout(retryTimer)
+    retryCount += 1
+    retryTimer = setTimeout(() => refreshCourses(), RETRY_INTERVAL)
+    return
+  }
+
+  // 第二步：提取课程
   const result = homeNavigatorService.extractSemesters()
+
+  // 第三步：验证数据质量 - 必须满足所有条件
+  // 1. 有当前学期课程
+  // 2. 至少有一门课程有真实进度（排除进度全为0的情况）
+  // 3. 待办任务数总和必须合理（不能超过课程数*10）
+  const currentSemester = result.find(s => s.isCurrent)
+  const hasValidCourses = currentSemester && currentSemester.courses.length > 0
+  const hasRealProgress = currentSemester && currentSemester.courses.some(c => c.progress > 0)
+  const totalPending = currentSemester ? currentSemester.courses.reduce((sum, c) => sum + c.pendingTasks, 0) : 0
+  const pendingReasonable = totalPending <= (currentSemester?.courses.length || 0) * 10
+  const dataQualityOk = hasValidCourses && hasRealProgress && pendingReasonable
+
+  console.log(`[HomePanel] 数据质量检查: hasValidCourses=${hasValidCourses}, hasRealProgress=${hasRealProgress}, pendingReasonable=${pendingReasonable}, totalPending=${totalPending}`)
+
+  if (!dataQualityOk && retryCount < MAX_RETRIES) {
+    // 数据质量不达标，继续重试，不更新状态
+    if (retryTimer) clearTimeout(retryTimer)
+    retryCount += 1
+    retryTimer = setTimeout(() => refreshCourses(), RETRY_INTERVAL)
+    console.log(`[HomePanel] 数据质量不达标，重试 ${retryCount}/${MAX_RETRIES}`)
+    return  // 关键：不更新状态，避免展示不完整的数据
+  }
+
+  // 数据质量达标或已达到最大重试次数，更新状态
   semesters.value = result
-  
+
   // 默认只展开本学期课程
   result.forEach(s => {
     if (s.isCurrent) {
       expandedSemesters.value[s.name] = true
     } else {
-      // 过去学期的课程默认折叠
       expandedSemesters.value[s.name] = false
     }
   })
+}
+
+function stopRetry(): void {
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
 }
 
 function toggleSemester(name: string): void {
@@ -172,18 +232,19 @@ function toggleSemester(name: string): void {
 }
 
 function togglePanel(): void {
-  if (!didDragMove) {
+  if (!didDragMove()) {
     isExpanded.value = !isExpanded.value
     if (isExpanded.value) {
+      // 展开时强制刷新一次（无视重试计数，让用户操作时能获取最新）
+      retryCount = 0
+      stopRetry()
       refreshCourses()
     }
   }
-  didDragMove = false
+  resetDragMove()
 }
 
 function navigateToCourse(course: CourseInfo): void {
-  // 直接调用 homeNavigatorService 的 navigateToCourse 方法
-  // 该方法会模拟点击按钮触发 Angular 路由跳转
   homeNavigatorService.navigateToCourse(course)
 }
 
@@ -191,94 +252,12 @@ function goToMoodle(): void {
   window.open('https://moodle.syxy.ouchn.cn/', '_blank')
 }
 
-function clamp(val: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, val))
-}
-
-function getBounds() {
-  const ww = window.innerWidth
-  const wh = window.innerHeight
-  return {
-    minX: MARGIN,
-    minY: MARGIN,
-    maxX: ww - BTN_WIDTH - MARGIN,
-    maxY: wh - BTN_HEIGHT - MARGIN,
-  }
-}
-
-function onDragStart(e: MouseEvent): void {
-  isSnapping.value = false
-  dragOffset = { x: e.clientX - position.value.x, y: e.clientY - position.value.y }
-  isDraggingFlag = true
-  didDragMove = false
-  document.addEventListener('mousemove', onDragMove)
-  document.addEventListener('mouseup', onDragEnd)
-}
-
-function onDragMove(e: MouseEvent): void {
-  if (!isDraggingFlag) return
-  const rawX = e.clientX - dragOffset.x
-  const rawY = e.clientY - dragOffset.y
-  if (!didDragMove) {
-    if (Math.abs(rawX - position.value.x) > DRAG_THRESHOLD || Math.abs(rawY - position.value.y) > DRAG_THRESHOLD) {
-      didDragMove = true
-    }
-  }
-  const bounds = getBounds()
-  position.value = {
-    x: clamp(rawX, bounds.minX, bounds.maxX),
-    y: clamp(rawY, bounds.minY, bounds.maxY),
-  }
-}
-
-function onDragEnd(): void {
-  isDraggingFlag = false
-  document.removeEventListener('mousemove', onDragMove)
-  document.removeEventListener('mouseup', onDragEnd)
-  if (didDragMove) {
-    const ww = window.innerWidth
-    const centerX = position.value.x + BTN_WIDTH / 2
-    const snapLeft = centerX < ww / 2
-    const snapEdge = snapLeft ? PanelEdge.LEFT : PanelEdge.RIGHT
-    const bounds = getBounds()
-    const targetX = snapLeft ? bounds.minX : bounds.maxX
-    const targetY = clamp(position.value.y, bounds.minY, bounds.maxY)
-    isSnapping.value = true
-    position.value = { x: targetX, y: targetY }
-    window.setTimeout(() => {
-      isSnapping.value = false
-      settingsStoreService.savePanelPosition(PanelType.COURSE, position.value.x, position.value.y, snapEdge)
-    }, 280)
-  }
-}
-
 onMounted(() => {
   refreshCourses()
-  
-  // 窗口大小变化时更新位置
-  window.addEventListener('resize', () => {
-    // 保持当前 x 位置相对于窗口边缘的关系
-    const ww = window.innerWidth
-    const centerX = position.value.x + BTN_WIDTH / 2
-    if (centerX < ww / 2) {
-      // 在左侧
-      position.value = {
-        x: MARGIN,
-        y: position.value.y,
-      }
-    } else {
-      // 在右侧
-      position.value = {
-        x: ww - BTN_WIDTH - MARGIN,
-        y: position.value.y,
-      }
-    }
-  })
 })
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', onDragMove)
-  document.removeEventListener('mouseup', onDragEnd)
+  stopRetry()
 })
 </script>
 
