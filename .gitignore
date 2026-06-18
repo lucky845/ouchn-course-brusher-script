@@ -5,5 +5,7 @@ package-lock.json
 .vscode/*
 .idea/*
 .env
+.trae/*
+AGENTS.md
 **/ouchn-course-brusher-vue.user.js
 .DS_Store
