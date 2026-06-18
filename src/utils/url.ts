@@ -82,3 +82,31 @@ export function isQuizPage (): boolean {
   if (typeof document !== 'undefined' && document.querySelector('.que, .question')) return true
   return false
 }
+
+/**
+ * 获取课程详情页的课程 ID
+ * @returns 课程 ID（如 190），如果不在课程详情页则返回 null
+ */
+export function getCourseId (): string | null {
+  if (typeof window === 'undefined') return null
+  const href = window.location.href
+  const match = href.match(/\/course\/view\.php\?id=(\d+)/)
+  return match ? match[1] : null
+}
+
+/**
+ * 获取课程详情页的课程名称
+ * @returns 课程名称，如果获取失败则返回空字符串
+ */
+export function getCourseName (): string {
+  if (typeof document === 'undefined') return ''
+  // 尝试从页面标题获取
+  const titleEl = document.querySelector('.page-header-data .page-title, h1, .coursename')
+  if (titleEl) {
+    return titleEl.textContent?.trim() || ''
+  }
+  // 从 document.title 获取
+  const docTitle = document.title
+  const match = docTitle.match(/^(.+?)\s*[-_]\s*Moodle/)
+  return match ? match[1].trim() : docTitle
+}

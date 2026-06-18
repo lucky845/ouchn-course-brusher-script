@@ -10,8 +10,9 @@
 - 自动刷课（视频播放控制、进度追踪、防检测）
 - 课程管理（多学期展示、进度统计、快捷导航）
 - 答题助手（题目提取、题型识别、一键复制）
+- **课程详情页助手**（v2.2.0 新增）：章节导航、进度概览、活动管理
 
-**版本**：v2.1.0
+**版本**：v2.2.0
 **构建产物**：`dist/ouchn-course-brusher-vue.user.js`
 
 ## 技术栈
@@ -31,14 +32,16 @@ src/
 ├── bootstrap.ts         # 启动流程：面板调度、延迟初始化
 ├── components/          # Vue 组件
 │   ├── FloatingPanel.vue    # 刷课控制面板
-│   ├── HomePanel.vue        # 课程管理面板
+│   ├── HomePanel.vue        # 课程管理面板（首页）
+│   ├── CoursePanel.vue       # 课程详情页面板（v2.2.0）
 │   └── QuizPanel.vue        # 答题助手面板
 ├── composables/         # 组合式函数
 │   └── useDraggablePanel.ts # 拖拽/吸附逻辑复用
 ├── services/            # 业务服务
 │   ├── videoManager.ts      # 视频播放管理
 │   ├── sidebarNavigator.ts  # 侧边栏导航
-│   ├── homeNavigator.ts     # 课程管理导航
+│   ├── homeNavigator.ts     # 首页课程管理导航
+│   ├── courseNavigator.ts   # 课程详情页导航（v2.2.0）
 │   ├── quizExtractor.ts     # 题目提取
 │   ├── settingsStore.ts     # 配置持久化
 │   ├── progressStats.ts     # 进度统计
@@ -158,7 +161,9 @@ npx vue-tsc --noEmit
 
 集中管理的类型：
 - `SpeedMode`, `PanelEdge`, `PanelType` - 枚举
-- `CourseInfo`, `SemesterInfo` - 课程/学期信息
+- `CourseInfo`, `SemesterInfo` - 首页课程/学期信息
+- `ChapterStatus`, `ChapterItem`, `ActivityItem` - 课程详情页章节/活动（v2.2.0）
+- `CourseDetailInfo`, `CoursePageState` - 课程详情页状态（v2.2.0）
 - `Settings`, `SessionStats`, `ProgressStats` - 状态类型
 - `Question`, `QuestionType` - 答题相关
 
@@ -173,6 +178,13 @@ PANEL_CONFIG_MAP: {
 }
 ```
 
+### [src/utils/url.ts](src/utils/url.ts)
+
+URL 工具函数：
+- `isCoursePage()` - 判断是否为课程详情页（`/course/view.php`）
+- `getCourseId()` - 获取课程 ID
+- `getCourseName()` - 获取课程名称
+
 ### [src/composables/useDraggablePanel.ts](src/composables/useDraggablePanel.ts)
 
 拖拽逻辑复用：
@@ -186,8 +198,24 @@ PANEL_CONFIG_MAP: {
 
 启动流程：
 - 多级延迟初始化（300ms, 800ms, DOMContentLoaded + 500ms）
-- 面板类型调度（刷课页/首页/答题页）
+- 面板类型调度（刷课页/首页/答题页/课程详情页）
 - 位置恢复
+
+### [src/services/courseNavigator.ts](src/services/courseNavigator.ts)（v2.2.0）
+
+课程详情页导航服务：
+- `extractCourseInfo()` - 提取课程信息
+- `extractChapters()` - 提取章节列表
+- `scrollToChapter()` - 滚动到指定章节
+- `scrollToActivity()` - 滚动到指定活动
+
+### [src/components/CoursePanel.vue](src/components/CoursePanel.vue)（v2.2.0）
+
+课程详情页助手面板：
+- 进度概览（已完成/未完成章节统计）
+- 章节导航（可折叠展开）
+- 活动列表（点击跳转）
+- 快捷操作（展开/折叠/刷新）
 
 ## 已知问题与解决方案
 
