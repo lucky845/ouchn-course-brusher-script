@@ -3,9 +3,7 @@ node_modules/*
 package-lock.json
 
 .vscode/*
-.trae/*
 .idea/*
 .env
-AGENTS.md
 **/ouchn-course-brusher-vue.user.js
 .DS_Store
