@@ -21,8 +21,10 @@ jobs:
           node-version: '20'
           cache: 'npm'
       
-      - name: Install dependencies
-        run: npm install
+      - name: Clean install dependencies
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
       
       - name: Build project
         run: npm run build
@@ -34,14 +36,14 @@ jobs:
             exit 1
           fi
           
-          FILE_SIZE=$(stat -f%z "dist/ouchn-course-brusher-vue.user.js" 2>/dev/null || stat -c%s "dist/ouchn-course-brusher-vue.user.js")
+          FILE_SIZE=$(stat -c%s "dist/ouchn-course-brusher-vue.user.js")
           if [ "$FILE_SIZE" -eq 0 ]; then
             echo "❌ Build failed: dist/ouchn-course-brusher-vue.user.js is empty"
             exit 1
           fi
           
           echo "✅ Build check passed"
-          echo "📦 Output file: dist/ouchn-course-brusher-vue.user.js"
+          echo "📦 Output file size: $FILE_SIZE bytes"
       
       - name: Upload build artifact
         if: always()
@@ -50,3 +52,4 @@ jobs:
           name: build-output
           path: dist/ouchn-course-brusher-vue.user.js
           retention-days: 30
+
