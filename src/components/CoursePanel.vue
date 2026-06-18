@@ -32,6 +32,23 @@
           <span class="stat-item completed">✅ {{ courseInfo?.completedChapters || 0 }}/{{ courseInfo?.totalChapters || 0 }}</span>
           <span class="stat-item pending">⬜ {{ unfinishedChapters }} 未完成</span>
         </div>
+
+        <!-- 刷课进度（正在刷当前课程时显示） -->
+        <div v-if="isBrushingCurrentCourse" class="brushing-status">
+          <div class="brushing-indicator">
+            <span class="brushing-icon">🎓</span>
+            <span class="brushing-text">正在刷课中...</span>
+          </div>
+          <div v-if="currentActivityName" class="brushing-activity">
+            当前: {{ currentActivityName }}
+          </div>
+          <div class="brushing-progress">
+            <div class="brushing-bar">
+              <div class="brushing-fill" :style="{ width: brushingProgress + '%' }"></div>
+            </div>
+            <span class="brushing-percent">{{ brushingProgress }}%</span>
+          </div>
+        </div>
       </div>
 
       <!-- 快捷操作 -->
@@ -90,9 +107,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { courseNavigatorService } from '../services/courseNavigator'
+import { courseProgressStore, type CourseProgressStoreData } from '../services/courseProgressStore'
 import { PanelType } from '../types'
 import { useDraggablePanel } from '../composables/useDraggablePanel'
 import { getPanelConfig } from '../utils/panel'
+import { getCourseId } from '../utils/url'
 
 // ===== 面板尺寸 =====
 const { width: BTN_WIDTH, height: BTN_HEIGHT, margin: MARGIN, dragThreshold: DRAG_THRESHOLD } = getPanelConfig(PanelType.COURSE)
@@ -111,11 +130,55 @@ const {
 const isExpanded = ref(false)
 const courseInfo = ref(courseNavigatorService.getCourseInfo())
 const expandedChapters = ref<Record<number, boolean>>({})
+const progressData = ref<CourseProgressStoreData>(courseProgressStore.getData())
 
 // ===== 计算属性 =====
 const unfinishedChapters = computed(() => {
   if (!courseInfo.value) return 0
   return courseInfo.value.chapters.filter(c => c.status !== 'completed').length
+})
+
+// 当前课程的刷课进度
+const currentCourseProgress = computed(() => {
+  const courseId = getCourseId()
+  if (!courseId) return null
+  return progressData.value.courses[courseId] || null
+})
+
+// 是否正在刷当前课程
+const isBrushingCurrentCourse = computed(() => {
+  return currentCourseProgress.value?.isBrushing || false
+})
+
+// 刷课完成百分比
+const brushingProgress = computed(() => {
+  const courseId = getCourseId()
+  if (!courseId) return 0
+  return courseProgressStore.getCourseCompletionPercent(courseId)
+})
+
+// 当前刷课活动名称
+const currentActivityName = computed(() => {
+  return currentCourseProgress.value?.lastActivityName || ''
+})
+
+// ===== 订阅进度变化 =====
+let unsubscribe: (() => void) | null = null
+
+function subscribeProgress(): void {
+  unsubscribe = courseProgressStore.subscribe((data) => {
+    progressData.value = data
+  })
+}
+
+onMounted(() => {
+  subscribeProgress()
+})
+
+onUnmounted(() => {
+  if (unsubscribe) {
+    unsubscribe()
+  }
 })
 
 // ===== 方法 =====
@@ -356,6 +419,78 @@ onMounted(() => {
 
 .stat-item.pending {
   color: #f59e0b;
+}
+
+/* 刷课进度状态 */
+.brushing-status {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  border-radius: 8px;
+  color: white;
+}
+
+.brushing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.brushing-icon {
+  font-size: 16px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.brushing-text {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.brushing-activity {
+  font-size: 11px;
+  opacity: 0.9;
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brushing-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brushing-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.brushing-fill {
+  height: 100%;
+  background: white;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.brushing-percent {
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 35px;
+  text-align: right;
 }
 
 /* 快捷操作 */

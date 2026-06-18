@@ -42,6 +42,7 @@ src/
 │   ├── sidebarNavigator.ts  # 侧边栏导航
 │   ├── homeNavigator.ts     # 首页课程管理导航
 │   ├── courseNavigator.ts   # 课程详情页导航（v2.2.0）
+│   ├── courseProgressStore.ts # 课程刷课进度共享状态（v2.2.0）
 │   ├── quizExtractor.ts     # 题目提取
 │   ├── settingsStore.ts     # 配置持久化
 │   ├── progressStats.ts     # 进度统计
@@ -209,6 +210,17 @@ URL 工具函数：
 - `scrollToChapter()` - 滚动到指定章节
 - `scrollToActivity()` - 滚动到指定活动
 
+### [src/services/courseProgressStore.ts](src/services/courseProgressStore.ts)（v2.2.0）
+
+课程刷课进度共享状态服务：
+- `startBrushing()` - 开始刷课，初始化课程进度
+- `updateCurrentActivity()` - 更新当前活动
+- `markActivityCompleted()` - 标记活动完成
+- `stopBrushing()` - 停止刷课
+- `syncFromCourseInfo()` - 从课程详情页同步进度
+- `subscribe()` - 订阅进度变化通知
+- 使用 localStorage 持久化，支持跨面板共享刷课状态
+
 ### [src/components/CoursePanel.vue](src/components/CoursePanel.vue)（v2.2.0）
 
 课程详情页助手面板：
@@ -216,6 +228,8 @@ URL 工具函数：
 - 章节导航（可折叠展开）
 - 活动列表（点击跳转）
 - 快捷操作（展开/折叠/刷新）
+- **刷课进度显示**：订阅刷课面板的进度，实时显示当前刷课状态
+- **跨面板联动**：刷课时自动同步进度到课程详情页面板
 
 ## 已知问题与解决方案
 
