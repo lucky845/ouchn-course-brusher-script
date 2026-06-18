@@ -140,6 +140,7 @@ import { videoManagerService } from '../services/videoManager'
 import { wakeLockService } from '../services/wakeLock'
 import { antiDetectionService } from '../services/antiDetection'
 import { sidebarNavigatorService } from '../services/sidebarNavigator'
+import { courseProgressStore } from '../services/courseProgressStore'
 import { useDraggablePanel } from '../composables/useDraggablePanel'
 import { getPanelConfig } from '../utils/panel'
 import { formatDuration } from '../utils/time'
@@ -349,6 +350,14 @@ function startBrushing (opts?: { resetSession?: boolean }): void {
 
   log('=== 开始刷课 ===')
 
+  // 初始化课程进度共享状态
+  const courseId = getCourseIdFromUrl()
+  const courseName = document.title.replace(/\s*[-_].*$/, '').trim() || '未知课程'
+  const items = sidebarNavigatorService.getAllItems()
+  if (courseId) {
+    courseProgressStore.startBrushing(courseId, courseName, items.length)
+  }
+
   // 启动辅助功能
   if (wakeLockOn.value) {
     wakeLockService.acquire(false).catch(() => {})
@@ -383,7 +392,17 @@ function stopBrushing (): void {
   // 停止刷课时清空 session（下次"开始"重新计数）
   settingsStoreService.sessionClear()
   stats.elapsedTime = ''
+
+  // 停止课程进度共享状态
+  courseProgressStore.stopBrushing()
+
   log('=== 停止刷课 ===')
+}
+
+/** 从 URL 中提取课程 ID */
+function getCourseIdFromUrl (): string | null {
+  const match = window.location.href.match(/\/course\/view\.php\?id=(\d+)/)
+  return match ? match[1] : null
 }
 
 function processCurrentPage (): void {
@@ -393,18 +412,27 @@ function processCurrentPage (): void {
     const url = window.location.href
     log(`处理页面: ${url.substring(0, 60)}...`)
 
+    // 获取当前活动信息并更新进度
+    const items = sidebarNavigatorService.getAllItems()
+    const curIndex = sidebarNavigatorService.findCurrentIndex(items)
+    if (curIndex >= 0 && items[curIndex]) {
+      const currentItem = items[curIndex]
+      const currentItemName = currentItem.textContent?.trim() || '(未命名)'
+      courseProgressStore.updateCurrentActivity(curIndex, currentItemName, currentItem.href)
+    }
+
     // 课程主页 / 目录页
     if (url.indexOf('/course/view.php') !== -1 || url.indexOf('/course/index') !== -1) {
       currentAction.value = '读取课程目录'
       log('→ 检测到课程主页，查找学习项目...')
 
-      const items = sidebarNavigatorService.getItemsFromCoursePage()
-      if (items && items.length > 0) {
-        log(`→ 找到 ${items.length} 个项目，跳转到第一个`)
+      const coursePageItems = sidebarNavigatorService.getItemsFromCoursePage()
+      if (coursePageItems && coursePageItems.length > 0) {
+        log(`→ 找到 ${coursePageItems.length} 个项目，跳转到第一个`)
         stats.itemsDone = 0
         setTimeout(() => {
           if (isRunning.value) {
-            window.location.href = items[0].href
+            window.location.href = coursePageItems[0].href
           }
         }, 1000)
         return
@@ -572,7 +600,13 @@ function goToNextItem (): void {
     if (curIndex >= 0) {
       const nextItem = items[curIndex + 1]
       if (nextItem) {
-        log(`→ 跳转到第 ${curIndex + 2} 项: ${(nextItem.textContent || nextItem.href || '').substring(0, 30) || '(未命名)'}`)
+        // 更新课程进度：标记当前活动完成，准备下一活动
+        courseProgressStore.markActivityCompleted(curIndex)
+        const nextItemName = nextItem.textContent?.trim() || '(未命名)'
+        const nextItemUrl = nextItem.href
+        courseProgressStore.updateCurrentActivity(curIndex + 1, nextItemName, nextItemUrl)
+
+        log(`→ 跳转到第 ${curIndex + 2} 项: ${nextItemName.substring(0, 30)}`)
         currentAction.value = '页面跳转中...'
         setTimeout(() => {
           if (isRunning.value) {

@@ -59,8 +59,31 @@ export function isActivityPage (): boolean {
 export function isCoursePage (): boolean {
   if (typeof window === 'undefined') return false
   const href = window.location.href
+  // 标准课程页面
   if (href.indexOf('/course/view.php') !== -1) return true
-  return href.indexOf('/course/index') !== -1
+  if (href.indexOf('/course/index') !== -1) return true
+  // 课程管理页面
+  if (href.indexOf('/course/management') !== -1) return true
+  // 课程编辑页面
+  if (href.indexOf('/course/edit.php') !== -1) return true
+  // 检查页面元素特征
+  if (typeof document !== 'undefined') {
+    // 课程页面通常有这些特征元素
+    if (document.querySelector('.course-content, .course-header, .course-section')) return true
+    if (document.querySelector('[role="main"] .page-header-data .page-title')) {
+      const title = document.querySelector('.page-header-data .page-title')?.textContent || ''
+      if (title.includes('课程') || title.includes('Course')) return true
+    }
+  }
+  return false
+}
+
+/**
+ * 判断当前页面是否为刷课内容页（/mod/* 路径下的视频、页面、论坛等）
+ */
+export function isModPage (): boolean {
+  if (typeof window === 'undefined') return false
+  return window.location.pathname.indexOf('/mod/') === 0
 }
 
 /**
@@ -81,4 +104,32 @@ export function isQuizPage (): boolean {
   if (href.includes('/mod/quiz') && (href.includes('attempt') || href.includes('review'))) return true
   if (typeof document !== 'undefined' && document.querySelector('.que, .question')) return true
   return false
+}
+
+/**
+ * 获取课程详情页的课程 ID
+ * @returns 课程 ID（如 190），如果不在课程详情页则返回 null
+ */
+export function getCourseId (): string | null {
+  if (typeof window === 'undefined') return null
+  const href = window.location.href
+  const match = href.match(/\/course\/view\.php\?id=(\d+)/)
+  return match ? match[1] : null
+}
+
+/**
+ * 获取课程详情页的课程名称
+ * @returns 课程名称，如果获取失败则返回空字符串
+ */
+export function getCourseName (): string {
+  if (typeof document === 'undefined') return ''
+  // 尝试从页面标题获取
+  const titleEl = document.querySelector('.page-header-data .page-title, h1, .coursename')
+  if (titleEl) {
+    return titleEl.textContent?.trim() || ''
+  }
+  // 从 document.title 获取
+  const docTitle = document.title
+  const match = docTitle.match(/^(.+?)\s*[-_]\s*Moodle/)
+  return match ? match[1].trim() : docTitle
 }

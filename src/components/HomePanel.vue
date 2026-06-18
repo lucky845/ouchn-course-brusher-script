@@ -196,14 +196,11 @@ function refreshCourses(): void {
   const pendingReasonable = totalPending <= (currentSemester?.courses.length || 0) * 10
   const dataQualityOk = hasValidCourses && hasRealProgress && pendingReasonable
 
-  console.log(`[HomePanel] 数据质量检查: hasValidCourses=${hasValidCourses}, hasRealProgress=${hasRealProgress}, pendingReasonable=${pendingReasonable}, totalPending=${totalPending}`)
-
   if (!dataQualityOk && retryCount < MAX_RETRIES) {
     // 数据质量不达标，继续重试，不更新状态
     if (retryTimer) clearTimeout(retryTimer)
     retryCount += 1
     retryTimer = setTimeout(() => refreshCourses(), RETRY_INTERVAL)
-    console.log(`[HomePanel] 数据质量不达标，重试 ${retryCount}/${MAX_RETRIES}`)
     return  // 关键：不更新状态，避免展示不完整的数据
   }
 

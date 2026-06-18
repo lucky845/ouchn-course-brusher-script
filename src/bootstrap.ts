@@ -6,18 +6,19 @@ import { createApp } from 'vue'
 import FloatingPanel from './components/FloatingPanel.vue'
 import QuizPanel from './components/QuizPanel.vue'
 import HomePanel from './components/HomePanel.vue'
+import CoursePanel from './components/CoursePanel.vue'
 import { writeStorageString, readStorageString, removeStorage } from './utils/storage'
-import { isStudentHomePage, isQuizPage } from './utils/url'
+import { isStudentHomePage, isQuizPage, isCoursePage, isModPage } from './utils/url'
 
 const STORAGE_KEY = 'ouchn_brusher_panel'
 
-type PanelTypeKey = 'home' | 'quiz' | 'course'
+type PanelTypeKey = 'home' | 'quiz' | 'course' | 'mod'
 
 interface PanelConfig {
   id: string
   type: PanelTypeKey
   label: string
-  component: typeof HomePanel | typeof QuizPanel | typeof FloatingPanel
+  component: typeof HomePanel | typeof QuizPanel | typeof FloatingPanel | typeof CoursePanel
 }
 
 const PANEL_CONFIGS: Record<PanelTypeKey, PanelConfig> = {
@@ -37,6 +38,12 @@ const PANEL_CONFIGS: Record<PanelTypeKey, PanelConfig> = {
     id: 'course-brushing-panel',
     type: 'course',
     label: '课程页面',
+    component: CoursePanel,
+  },
+  mod: {
+    id: 'mod-brushing-panel',
+    type: 'mod',
+    label: '刷课页面',
     component: FloatingPanel,
   },
 }
@@ -50,7 +57,8 @@ let initializedPanel = ''
 function detectPanelType (): PanelTypeKey | null {
   if (isStudentHomePage()) return 'home'
   if (isQuizPage()) return 'quiz'
-  if (typeof window !== 'undefined' && window.location.href.includes('moodle.syxy.ouchn.cn')) return 'course'
+  if (isCoursePage()) return 'course'
+  if (isModPage()) return 'mod'
   return null
 }
 
@@ -75,7 +83,8 @@ function mountPanel (panelType: PanelTypeKey): void {
 function hasExistingPanel (): boolean {
   return !!document.getElementById('home-brushing-panel') ||
          !!document.getElementById('quiz-brushing-panel') ||
-         !!document.getElementById('course-brushing-panel')
+         !!document.getElementById('course-brushing-panel') ||
+         !!document.getElementById('mod-brushing-panel')
 }
 
 /**

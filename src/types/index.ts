@@ -14,6 +14,7 @@ export enum PanelType {
   FLOATING = 'floating',
   COURSE = 'course',
   QUIZ = 'quiz',
+  MOD = 'mod',
 }
 
 export const PLAYBACK_RATES = {
@@ -122,4 +123,43 @@ export interface SemesterInfo {
   name: string
   isCurrent: boolean
   courses: CourseInfo[]
+}
+
+// ===== 课程详情页/章节信息 =====
+export enum ChapterStatus {
+  COMPLETED = 'completed',
+  IN_PROGRESS = 'in_progress',
+  NOT_STARTED = 'not_started',
+}
+
+export interface ChapterItem {
+  name: string
+  status: ChapterStatus
+  progress: number
+  element: HTMLElement | null
+  linkUrl?: string
+  activities: ActivityItem[]
+}
+
+export interface ActivityItem {
+  name: string
+  type: string
+  status: ChapterStatus
+  url?: string
+  element?: HTMLElement
+}
+
+export interface CourseDetailInfo {
+  courseId: string
+  courseName: string
+  overallProgress: number
+  chapters: ChapterItem[]
+  totalChapters: number
+  completedChapters: number
+}
+
+export interface CoursePageState {
+  courseInfo: CourseDetailInfo | null
+  isLoading: boolean
+  lastUpdateTime: number
 }
