@@ -9,7 +9,7 @@ export const NAV_ITEM_SELECTORS = {
     '.block_settings',
     '.block_navigation',
     '.courseindex',
-    '.course-index',
+    '.course-index'
   ],
 
   /** 课程主页上的活动链接选择器（按优先级） */
@@ -22,7 +22,7 @@ export const NAV_ITEM_SELECTORS = {
     '.topics .activity a[href]',
     'li.activity a[href]',
     'a[href*="/mod/"][href*="view.php"]',
-    'a.aalink[href]',
+    'a.aalink[href]'
   ],
 
   /** 学习内容页上的"下一个活动"导航链接选择器 */
@@ -40,7 +40,7 @@ export const NAV_ITEM_SELECTORS = {
     'a[aria-label*="下一个活动"]',
     'a[aria-label*="next activity"]',
     '.jumpmenu_next a',
-    '.urlselect + a',
+    '.urlselect + a'
   ],
 
   /** "下一个活动"关键字匹配（中英文） */
@@ -51,7 +51,7 @@ export const NAV_ITEM_SELECTORS = {
     '下一个',
     'Next activity',
     'Next Activity',
-    'next activity',
+    'next activity'
   ],
 
   /** 面包屑/导航链选择器 */
@@ -59,6 +59,6 @@ export const NAV_ITEM_SELECTORS = {
     '.breadcrumb',
     '#page-navbar',
     '.navbar .breadcrumb',
-    '.navbar-brand',
-  ],
+    '.navbar-brand'
+  ]
 }

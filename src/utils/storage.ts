@@ -4,7 +4,7 @@
  */
 
 /** 写入任意 JSON-serializable 值到 localStorage */
-export function writeStorage<T> (key: string, value: T): boolean {
+export function writeStorage<T>(key: string, value: T): boolean {
   try {
     localStorage.setItem(key, JSON.stringify(value))
     return true
@@ -15,10 +15,10 @@ export function writeStorage<T> (key: string, value: T): boolean {
 }
 
 /** 读取 localStorage 值，解析为 JSON 对象 */
-export function readStorage<T> (
+export function readStorage<T>(
   key: string,
   fallback: T,
-  validator?: (data: unknown) => data is T,
+  validator?: (data: unknown)=> data is T
 ): T {
   try {
     const raw = localStorage.getItem(key)
@@ -35,9 +35,9 @@ export function readStorage<T> (
 }
 
 /** 读取 JSON 对象，允许返回 undefined（无默认值） */
-export function readStorageOptional<T> (
+export function readStorageOptional<T>(
   key: string,
-  validator?: (data: unknown) => data is T,
+  validator?: (data: unknown)=> data is T
 ): T | undefined {
   try {
     const raw = localStorage.getItem(key)
@@ -54,8 +54,8 @@ export function readStorageOptional<T> (
 }
 
 /** 从 localStorage 读取 Record 对象（用于面板位置等聚合存储） */
-export function readStorageRecord<T> (
-  key: string,
+export function readStorageRecord<T>(
+  key: string
 ): Record<string, T> {
   try {
     const raw = localStorage.getItem(key)
@@ -71,7 +71,7 @@ export function readStorageRecord<T> (
 }
 
 /** 移除某一 localStorage 项 */
-export function removeStorage (key: string): void {
+export function removeStorage(key: string): void {
   try {
     localStorage.removeItem(key)
   } catch (e) {
@@ -80,7 +80,7 @@ export function removeStorage (key: string): void {
 }
 
 /** 读取字符串值（用于 "true"/"false" 之类的简单标记） */
-export function readStorageString (key: string): string | null {
+export function readStorageString(key: string): string | null {
   try {
     return localStorage.getItem(key)
   } catch (e) {
@@ -90,7 +90,7 @@ export function readStorageString (key: string): string | null {
 }
 
 /** 写入字符串值（不做 JSON 序列化） */
-export function writeStorageString (key: string, value: string): void {
+export function writeStorageString(key: string, value: string): void {
   try {
     localStorage.setItem(key, value)
   } catch (e) {

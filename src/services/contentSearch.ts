@@ -26,7 +26,7 @@ export interface SearchConfig {
 const DEFAULT_CONFIG: SearchConfig = {
   caseSensitive: false,
   wholeWord: false,
-  maxResults: 50,
+  maxResults: 50
 }
 
 export class ContentSearchService {
@@ -36,7 +36,7 @@ export class ContentSearchService {
   /**
    * 设置要搜索的章节数据
    */
-  setChapters (chapters: ChapterItem[]): void {
+  setChapters(chapters: ChapterItem[]): void {
     this.chapters = chapters
     this.clearHighlights()
   }
@@ -44,7 +44,7 @@ export class ContentSearchService {
   /**
    * 搜索章节和活动
    */
-  search (keyword: string, config: Partial<SearchConfig> = {}): SearchResult[] {
+  search(keyword: string, config: Partial<SearchConfig> = {}): SearchResult[] {
     if (!keyword || keyword.trim().length === 0) {
       return []
     }
@@ -77,7 +77,7 @@ export class ContentSearchService {
           chapterName: chapter.name,
           matchedText: this.extractMatch(chapter.name, regex),
           matchType: 'chapter',
-          element: chapter.element || undefined,
+          element: chapter.element || undefined
         })
         regex.lastIndex = 0 // 重置正则状态
       }
@@ -95,7 +95,7 @@ export class ContentSearchService {
             activityUrl: activity.url,
             matchedText: this.extractMatch(activity.name, regex),
             matchType: 'activity',
-            element: activity.element || undefined,
+            element: activity.element || undefined
           })
           regex.lastIndex = 0
         }
@@ -112,7 +112,7 @@ export class ContentSearchService {
   /**
    * 在页面内容中搜索
    */
-  private searchPageContent (keyword: string, results: SearchResult[], settings: SearchConfig): void {
+  private searchPageContent(keyword: string, results: SearchResult[], settings: SearchConfig): void {
     if (results.length >= settings.maxResults) return
 
     const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -150,7 +150,7 @@ export class ContentSearchService {
             : '未知章节',
           matchedText: this.extractMatch(text, new RegExp(pattern, flag)),
           matchType: 'content',
-          element: el as HTMLElement,
+          element: el as HTMLElement
         })
       }
     })
@@ -159,7 +159,7 @@ export class ContentSearchService {
   /**
    * 提取匹配文本片段
    */
-  private extractMatch (text: string, regex: RegExp): string {
+  private extractMatch(text: string, regex: RegExp): string {
     const match = text.match(regex)
     if (!match) return text.substring(0, 50)
 
@@ -180,7 +180,7 @@ export class ContentSearchService {
   /**
    * 高亮搜索结果
    */
-  highlightResults (results: SearchResult[]): void {
+  highlightResults(results: SearchResult[]): void {
     this.clearHighlights()
 
     results.forEach((result) => {
@@ -193,7 +193,7 @@ export class ContentSearchService {
   /**
    * 高亮单个元素
    */
-  private highlightElement (element: HTMLElement, matchedText: string): void {
+  private highlightElement(element: HTMLElement, matchedText: string): void {
     // 创建一个高亮标记
     const marker = document.createElement('mark')
     marker.className = 'course-search-highlight'
@@ -238,7 +238,7 @@ export class ContentSearchService {
   /**
    * 清除高亮
    */
-  clearHighlights (): void {
+  clearHighlights(): void {
     this.highlightMarkers.forEach((el) => {
       // 移除 highlight 类
       el.querySelectorAll('.course-search-highlight').forEach((mark) => {
@@ -258,7 +258,7 @@ export class ContentSearchService {
   /**
    * 滚动到搜索结果
    */
-  scrollToResult (result: SearchResult): void {
+  scrollToResult(result: SearchResult): void {
     if (result.element) {
       result.element.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
@@ -275,7 +275,7 @@ export class ContentSearchService {
   /**
    * 获取搜索历史
    */
-  getSearchHistory (): string[] {
+  getSearchHistory(): string[] {
     try {
       const history = localStorage.getItem('ouchn_course_search_history')
       return history ? JSON.parse(history) : []
@@ -287,7 +287,7 @@ export class ContentSearchService {
   /**
    * 添加到搜索历史
    */
-  addToHistory (keyword: string): void {
+  addToHistory(keyword: string): void {
     try {
       const history = this.getSearchHistory()
       const filtered = history.filter(h => h !== keyword)
@@ -301,7 +301,7 @@ export class ContentSearchService {
   /**
    * 清空搜索历史
    */
-  clearHistory (): void {
+  clearHistory(): void {
     localStorage.removeItem('ouchn_course_search_history')
   }
 }

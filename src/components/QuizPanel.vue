@@ -79,7 +79,9 @@
             v-for="(l, i) in logs.slice(-5)"
             :key="i"
             class="log-line"
-          >[{{ l.time }}] {{ l.text }}</div>
+          >
+            [{{ l.time }}] {{ l.text }}
+          </div>
         </div>
       </div>
     </div>
@@ -103,7 +105,7 @@ const {
   isDragging,
   onDragStart,
   didDragMove,
-  resetDragMove,
+  resetDragMove
 } = useDraggablePanel(PanelType.QUIZ, BTN_WIDTH, BTN_HEIGHT, MARGIN, DRAG_THRESHOLD)
 
 // ===== 状态 =====
@@ -115,13 +117,13 @@ const result = reactive<{
   questions: Question[]
 }>({
   count: 0,
-  questions: [],
+  questions: []
 })
 
-const logs = reactive<Array<{ time: string; text: string }>>([])
+const logs = reactive<Array<{ time: string, text: string }>>([])
 
 // ===== 工具 =====
-function log (text: string): void {
+function log(text: string): void {
   const d = new Date()
   const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
   logs.push({ time: t, text })
@@ -129,14 +131,14 @@ function log (text: string): void {
 }
 
 // ===== 点击行为 =====
-function onBtnClick (): void {
+function onBtnClick(): void {
   if (!didDragMove()) {
     isOpen.value = !isOpen.value
   }
   resetDragMove()
 }
 
-async function handleExtract (mode: 'smart' | 'brute' | 'ultra'): Promise<void> {
+async function handleExtract(mode: 'smart' | 'brute' | 'ultra'): Promise<void> {
   try {
     statusText.value = `正在${mode === 'smart' ? '智能' : mode === 'brute' ? '暴力' : '超强'}提取中...`
     log(`开始提取 (${mode}模式)`)
@@ -171,13 +173,13 @@ async function handleExtract (mode: 'smart' | 'brute' | 'ultra'): Promise<void> 
   }
 }
 
-async function copyResult (): Promise<void> {
+async function copyResult(): Promise<void> {
   try {
     const questions = result.questions.map(q => ({
       number: q.number,
       text: q.text,
       type: q.type,
-      options: q.options,
+      options: q.options
     }))
     const ok = await quizExtractorService.copyToClipboard(
       quizExtractorService.formatQuestions(questions)

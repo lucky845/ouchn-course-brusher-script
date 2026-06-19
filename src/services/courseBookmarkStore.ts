@@ -30,42 +30,42 @@ export interface BookmarkData {
 
 const DEFAULT_DATA: BookmarkData = {
   bookmarks: [],
-  lastBookmarkId: null,
+  lastBookmarkId: null
 }
 
-function isValidData (data: unknown): data is BookmarkData {
+function isValidData(data: unknown): data is BookmarkData {
   if (data === null || typeof data !== 'object') return false
   const d = data as any
   return Array.isArray(d.bookmarks)
 }
 
-type BookmarkListener = (data: BookmarkData) => void
+type BookmarkListener = (data: BookmarkData)=> void
 
 export class BookmarkStore {
   private data: BookmarkData = { ...DEFAULT_DATA }
-  private listeners: Set<BookmarkListener> = new Set()
+  private listeners = new Set<BookmarkListener>()
 
-  constructor () {
+  constructor() {
     this.load()
   }
 
   /** 从 localStorage 加载数据 */
-  private load (): void {
+  private load(): void {
     const parsed = readStorage<BookmarkData>(BOOKMARK_KEY, DEFAULT_DATA, isValidData)
-    this.data = { ...DEFAULT_DATA, ...parsed, bookmarks: parsed?.bookmarks || [] }
+    this.data = { ...DEFAULT_DATA, ...parsed, bookmarks: parsed?.bookmarks || []}
   }
 
   /** 保存数据到 localStorage */
-  private save (): void {
+  private save(): void {
     writeStorage(BOOKMARK_KEY, this.data)
     this.notifyListeners()
   }
 
   /** 通知所有监听器 */
-  private notifyListeners (): void {
+  private notifyListeners(): void {
     this.listeners.forEach((listener) => {
       try {
-        listener({ ...this.data, bookmarks: [...this.data.bookmarks] })
+        listener({ ...this.data, bookmarks: [...this.data.bookmarks]})
       } catch (e) {
         console.warn('[BookmarkStore] Listener error', e)
       }
@@ -73,26 +73,26 @@ export class BookmarkStore {
   }
 
   /** 订阅变化 */
-  subscribe (listener: BookmarkListener): () => void {
+  subscribe(listener: BookmarkListener): ()=> void {
     this.listeners.add(listener)
-    listener({ ...this.data, bookmarks: [...this.data.bookmarks] })
+    listener({ ...this.data, bookmarks: [...this.data.bookmarks]})
     return () => {
       this.listeners.delete(listener)
     }
   }
 
   /** 获取所有书签 */
-  getAll (): Bookmark[] {
+  getAll(): Bookmark[] {
     return [...this.data.bookmarks]
   }
 
   /** 获取当前课程的书签 */
-  getByCourse (courseId: string): Bookmark[] {
+  getByCourse(courseId: string): Bookmark[] {
     return this.data.bookmarks.filter(b => b.courseId === courseId)
   }
 
   /** 获取当前课程的最后书签 */
-  getLastBookmark (courseId: string): Bookmark | null {
+  getLastBookmark(courseId: string): Bookmark | null {
     const courseBookmarks = this.getByCourse(courseId)
     if (courseBookmarks.length === 0) return null
     // 按更新时间排序，返回最新的
@@ -100,13 +100,13 @@ export class BookmarkStore {
   }
 
   /** 创建书签 */
-  create (bookmark: Omit<Bookmark, 'id' | 'createdAt' | 'updatedAt'>): Bookmark {
+  create(bookmark: Omit<Bookmark, 'id' | 'createdAt' | 'updatedAt'>): Bookmark {
     const now = Date.now()
     const newBookmark: Bookmark = {
       ...bookmark,
       id: `bm_${now}_${Math.random().toString(36).substring(2, 8)}`,
       createdAt: now,
-      updatedAt: now,
+      updatedAt: now
     }
 
     this.data.bookmarks.unshift(newBookmark)
@@ -118,7 +118,7 @@ export class BookmarkStore {
   }
 
   /** 保存当前位置为书签 */
-  saveCurrentPosition (options?: { note?: string }): Bookmark | null {
+  saveCurrentPosition(options?: { note?: string }): Bookmark | null {
     const courseId = getCourseId()
     if (!courseId) {
       console.log('[BookmarkStore] 无法获取课程 ID')
@@ -145,26 +145,26 @@ export class BookmarkStore {
       activityIndex: activityInfo.index,
       activityName: activityInfo.name,
       activityUrl: activityInfo.url,
-      note: options?.note,
+      note: options?.note
     })
   }
 
   /** 更新书签 */
-  update (id: string, updates: Partial<Pick<Bookmark, 'note'>>): boolean {
+  update(id: string, updates: Partial<Pick<Bookmark, 'note'>>): boolean {
     const index = this.data.bookmarks.findIndex(b => b.id === id)
     if (index === -1) return false
 
     this.data.bookmarks[index] = {
       ...this.data.bookmarks[index],
       ...updates,
-      updatedAt: Date.now(),
+      updatedAt: Date.now()
     }
     this.save()
     return true
   }
 
   /** 删除书签 */
-  delete (id: string): boolean {
+  delete(id: string): boolean {
     const index = this.data.bookmarks.findIndex(b => b.id === id)
     if (index === -1) return false
 
@@ -177,7 +177,7 @@ export class BookmarkStore {
   }
 
   /** 删除课程的所有书签 */
-  deleteByCourse (courseId: string): number {
+  deleteByCourse(courseId: string): number {
     const before = this.data.bookmarks.length
     this.data.bookmarks = this.data.bookmarks.filter(b => b.courseId !== courseId)
     if (this.data.lastBookmarkId) {
@@ -189,14 +189,14 @@ export class BookmarkStore {
   }
 
   /** 获取章节索引 */
-  private getChapterIndex (el: HTMLElement | null): number {
+  private getChapterIndex(el: HTMLElement | null): number {
     if (!el) return 0
     const allChapters = document.querySelectorAll('.course-section, .section, [id^="section-"]')
     return Array.from(allChapters).indexOf(el)
   }
 
   /** 获取活动信息 */
-  private getActivityInfo (el: HTMLElement | null): { index: number; name: string; url: string } {
+  private getActivityInfo(el: HTMLElement | null): { index: number, name: string, url: string } {
     if (!el) return { index: -1, name: '', url: '' }
 
     const nameEl = el.querySelector('.instancename, .activityname, a')

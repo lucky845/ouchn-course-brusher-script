@@ -2,9 +2,9 @@ import { SpeedMode } from '../types'
 
 export class VideoManagerService {
   private video: HTMLVideoElement | null = null
-  private protectedVideos: Map<HTMLVideoElement, number> = new Map()
-  private activeIntervals: Set<number> = new Set()
-  private onCompleteCallback: (() => void) | null = null
+  private protectedVideos = new Map<HTMLVideoElement, number>()
+  private activeIntervals = new Set<number>()
+  private onCompleteCallback: (()=> void) | null = null
   private speedMode: SpeedMode = SpeedMode.NORMAL
   private videoPlaybackRate: number = 1
 
@@ -135,7 +135,7 @@ export class VideoManagerService {
     return false
   }
 
-  setupAutoAdvance(onComplete: () => void): void {
+  setupAutoAdvance(onComplete: ()=> void): void {
     try {
       this.onCompleteCallback = onComplete
       const currentVideo = this.video

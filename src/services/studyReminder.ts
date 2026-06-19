@@ -29,7 +29,7 @@ export enum ReminderType {
   DEADLINE = 'deadline',     // 截止日期提醒
   DAILY = 'daily',           // 每日提醒
   WEEKLY = 'weekly',         // 每周提醒
-  CUSTOM = 'custom',          // 自定义提醒
+  CUSTOM = 'custom'          // 自定义提醒
 }
 
 /** 学习提醒 */
@@ -75,10 +75,10 @@ const DEFAULT_DATA: ReminderData = {
   version: CURRENT_VERSION,
   updatedAt: Date.now(),
   reminders: [],
-  notifications: [],
+  notifications: []
 }
 
-function isValidData (data: unknown): data is ReminderData {
+function isValidData(data: unknown): data is ReminderData {
   if (data === null || typeof data !== 'object') return false
   const d = data as any
   return (
@@ -89,21 +89,21 @@ function isValidData (data: unknown): data is ReminderData {
   )
 }
 
-type ReminderListener = (data: ReminderData) => void
+type ReminderListener = (data: ReminderData)=> void
 
 export class StudyReminderService {
   private data: ReminderData = { ...DEFAULT_DATA }
-  private listeners: Set<ReminderListener> = new Set()
+  private listeners = new Set<ReminderListener>()
   private checkTimer: number | null = null
   private lastCleanAt: number | null = null
 
-  constructor () {
+  constructor() {
     this.load()
     this.startChecking()
   }
 
   /** 从 localStorage 加载数据（含版本校验与过期清理） */
-  private load (): void {
+  private load(): void {
     const parsed = readStorage<ReminderData>(REMINDER_KEY, DEFAULT_DATA, isValidData)
 
     // 1) 数据整体过期：超过 DATA_TTL_MS 未更新则全部清空（防止缓存残留泄漏
@@ -152,12 +152,12 @@ export class StudyReminderService {
       version: CURRENT_VERSION,
       updatedAt: Date.now(),
       reminders,
-      notifications,
+      notifications
     }
   }
 
   /** 保存数据到 localStorage（自动更新 updatedAt 与 version） */
-  private save (): void {
+  private save(): void {
     this.data.version = CURRENT_VERSION
     this.data.updatedAt = Date.now()
     writeStorage(REMINDER_KEY, this.data)
@@ -165,7 +165,7 @@ export class StudyReminderService {
   }
 
   /** 通知所有监听器 */
-  private notifyListeners (): void {
+  private notifyListeners(): void {
     this.listeners.forEach((listener) => {
       try {
         listener({ ...this.data })
@@ -176,7 +176,7 @@ export class StudyReminderService {
   }
 
   /** 订阅变化 */
-  subscribe (listener: ReminderListener): () => void {
+  subscribe(listener: ReminderListener): ()=> void {
     this.listeners.add(listener)
     listener({ ...this.data })
     return () => {
@@ -185,7 +185,7 @@ export class StudyReminderService {
   }
 
   /** 启动定时检查 */
-  private startChecking (): void {
+  private startChecking(): void {
     if (this.checkTimer !== null) return
 
     // 每分钟检查一次
@@ -201,7 +201,7 @@ export class StudyReminderService {
   }
 
   /** 停止定时检查 */
-  stopChecking (): void {
+  stopChecking(): void {
     if (this.checkTimer !== null) {
       clearInterval(this.checkTimer)
       this.checkTimer = null
@@ -212,7 +212,7 @@ export class StudyReminderService {
    * 清理过期数据（运行时定期调用）
    * @param force 强制清理，否则每小时最多清理一次
    */
-  private cleanExpiredData (force = false): void {
+  private cleanExpiredData(force = false): void {
     const now = Date.now()
     // 每小时最多清理一次（节省性能）
     if (!force && this.lastCleanAt && now - this.lastCleanAt < 60 * 60 * 1000) {
@@ -243,7 +243,7 @@ export class StudyReminderService {
 
     // 通知历史：时间 + 数量限制
     this.data.notifications = this.data.notifications
-      .filter((n) => now - n.timestamp <= NOTIFICATION_TTL_MS)
+      .filter(n => now - n.timestamp <= NOTIFICATION_TTL_MS)
       .slice(0, NOTIFICATION_MAX_COUNT)
 
     const removedReminders = beforeReminders - this.data.reminders.length
@@ -259,7 +259,7 @@ export class StudyReminderService {
   }
 
   /** 检查提醒 */
-  private checkReminders (): void {
+  private checkReminders(): void {
     // 先做一次惰性过期清理
     this.cleanExpiredData(false)
 
@@ -315,7 +315,7 @@ export class StudyReminderService {
   }
 
   /** 触发提醒 */
-  private triggerReminder (reminder: StudyReminder): void {
+  private triggerReminder(reminder: StudyReminder): void {
     // 更新最后触发时间
     reminder.lastTriggered = Date.now()
     this.save()
@@ -327,7 +327,7 @@ export class StudyReminderService {
       title: reminder.title,
       message: this.getReminderMessage(reminder),
       timestamp: Date.now(),
-      read: false,
+      read: false
     }
 
     this.data.notifications.unshift(notification)
@@ -344,7 +344,7 @@ export class StudyReminderService {
   }
 
   /** 获取提醒消息 */
-  private getReminderMessage (reminder: StudyReminder): string {
+  private getReminderMessage(reminder: StudyReminder): string {
     switch (reminder.type) {
       case ReminderType.DAILY:
         return `该学习了！${reminder.description || ''}`
@@ -366,14 +366,14 @@ export class StudyReminderService {
   }
 
   /** 显示浏览器通知 */
-  private showBrowserNotification (notification: Notification): void {
+  private showBrowserNotification(notification: Notification): void {
     if (!('Notification' in window)) return
 
     if (Notification.permission === 'granted') {
       new Notification(notification.title, {
         body: notification.message,
         icon: '📚',
-        tag: notification.id,
+        tag: notification.id
       })
     } else if (Notification.permission !== 'denied') {
       Notification.requestPermission().then((permission) => {
@@ -381,7 +381,7 @@ export class StudyReminderService {
           new Notification(notification.title, {
             body: notification.message,
             icon: '📚',
-            tag: notification.id,
+            tag: notification.id
           })
         }
       })
@@ -389,27 +389,27 @@ export class StudyReminderService {
   }
 
   /** 获取所有提醒 */
-  getAll (): StudyReminder[] {
+  getAll(): StudyReminder[] {
     return [...this.data.reminders]
   }
 
   /** 获取当前课程提醒 */
-  getByCourse (courseId: string): StudyReminder[] {
+  getByCourse(courseId: string): StudyReminder[] {
     return this.data.reminders.filter(r => r.courseId === courseId)
   }
 
   /** 获取未读通知数 */
-  getUnreadCount (): number {
+  getUnreadCount(): number {
     return this.data.notifications.filter(n => !n.read).length
   }
 
   /** 获取通知 */
-  getNotifications (limit = 20): Notification[] {
+  getNotifications(limit = 20): Notification[] {
     return this.data.notifications.slice(0, limit)
   }
 
   /** 标记通知已读 */
-  markAsRead (notificationId: string): void {
+  markAsRead(notificationId: string): void {
     const notif = this.data.notifications.find(n => n.id === notificationId)
     if (notif) {
       notif.read = true
@@ -418,21 +418,21 @@ export class StudyReminderService {
   }
 
   /** 全部标记已读 */
-  markAllAsRead (): void {
-    this.data.notifications.forEach(n => {
+  markAllAsRead(): void {
+    this.data.notifications.forEach((n) => {
       n.read = true
     })
     this.save()
   }
 
   /** 清空通知 */
-  clearNotifications (): void {
+  clearNotifications(): void {
     this.data.notifications = []
     this.save()
   }
 
   /** 创建每日提醒 */
-  createDailyReminder (title: string, time: string, description?: string): StudyReminder {
+  createDailyReminder(title: string, time: string, description?: string): StudyReminder {
     const courseId = getCourseId() || 'global'
     const courseName = document.title.replace(/\s*[-_].*$/, '').trim() || '通用'
 
@@ -446,7 +446,7 @@ export class StudyReminderService {
       time,
       repeat: 'daily',
       enabled: true,
-      createdAt: Date.now(),
+      createdAt: Date.now()
     }
 
     this.data.reminders.push(reminder)
@@ -456,7 +456,7 @@ export class StudyReminderService {
   }
 
   /** 创建每周提醒 */
-  createWeeklyReminder (title: string, weekday: number, time: string, description?: string): StudyReminder {
+  createWeeklyReminder(title: string, weekday: number, time: string, description?: string): StudyReminder {
     const courseId = getCourseId() || 'global'
     const courseName = document.title.replace(/\s*[-_].*$/, '').trim() || '通用'
 
@@ -471,7 +471,7 @@ export class StudyReminderService {
       weekday,
       repeat: 'weekly',
       enabled: true,
-      createdAt: Date.now(),
+      createdAt: Date.now()
     }
 
     this.data.reminders.push(reminder)
@@ -481,7 +481,7 @@ export class StudyReminderService {
   }
 
   /** 创建截止日期提醒 */
-  createDeadlineReminder (title: string, deadline: number, description?: string): StudyReminder {
+  createDeadlineReminder(title: string, deadline: number, description?: string): StudyReminder {
     const courseId = getCourseId() || 'global'
     const courseName = document.title.replace(/\s*[-_].*$/, '').trim() || '通用'
 
@@ -494,7 +494,7 @@ export class StudyReminderService {
       description,
       deadline,
       enabled: true,
-      createdAt: Date.now(),
+      createdAt: Date.now()
     }
 
     this.data.reminders.push(reminder)
@@ -504,7 +504,7 @@ export class StudyReminderService {
   }
 
   /** 更新提醒 */
-  update (id: string, updates: Partial<StudyReminder>): boolean {
+  update(id: string, updates: Partial<StudyReminder>): boolean {
     const index = this.data.reminders.findIndex(r => r.id === id)
     if (index === -1) return false
 
@@ -514,7 +514,7 @@ export class StudyReminderService {
   }
 
   /** 删除提醒 */
-  delete (id: string): boolean {
+  delete(id: string): boolean {
     const index = this.data.reminders.findIndex(r => r.id === id)
     if (index === -1) return false
 
@@ -524,7 +524,7 @@ export class StudyReminderService {
   }
 
   /** 删除课程的所有提醒 */
-  deleteByCourse (courseId: string): number {
+  deleteByCourse(courseId: string): number {
     const before = this.data.reminders.length
     this.data.reminders = this.data.reminders.filter(r => r.courseId !== courseId)
     this.save()
@@ -532,7 +532,7 @@ export class StudyReminderService {
   }
 
   /** 切换提醒启用状态 */
-  toggle (id: string): boolean {
+  toggle(id: string): boolean {
     const reminder = this.data.reminders.find(r => r.id === id)
     if (!reminder) return false
 

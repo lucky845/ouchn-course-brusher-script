@@ -14,7 +14,7 @@ const QUIZ_URL_PATTERN = '/mod/quiz/'
 // Moodle 平台
 const MOODLE_SUBJECT_SELECTOR = '.que'
 const MOODLE_QTEXT_SELECTOR = '.qtext'
-const MOODLE_TYPE_CLASS_MAP: Array<{ className: string; type: QuestionType }> = [
+const MOODLE_TYPE_CLASS_MAP: Array<{ className: string, type: QuestionType }> = [
   { className: 'truefalse', type: QuestionType.TRUE_FALSE },
   { className: 'multichoiceset', type: QuestionType.MULTIPLE_CHOICE },
   { className: 'multichoice', type: QuestionType.SINGLE_CHOICE },
@@ -26,7 +26,7 @@ const MOODLE_TYPE_CLASS_MAP: Array<{ className: string; type: QuestionType }> = 
   { className: 'cloze', type: QuestionType.CLOZE },
   { className: 'gapselect', type: QuestionType.CLOZE },
   { className: 'ddwtos', type: QuestionType.DRAG_DROP },
-  { className: 'ordering', type: QuestionType.ORDERING },
+  { className: 'ordering', type: QuestionType.ORDERING }
 ]
 
 // OUCHN 平台
@@ -40,7 +40,7 @@ const OUCHN_DESCRIPTION_SELECTOR = '.subject-description'
 const OUCHN_SUMMARY_SELECTOR = '.summary-sub-title'
 
 // 题型文字映射（优先级高于 class）
-const TYPE_TEXT_MAP: Array<{ pattern: RegExp; type: QuestionType }> = [
+const TYPE_TEXT_MAP: Array<{ pattern: RegExp, type: QuestionType }> = [
   { pattern: /单选题|单选/, type: QuestionType.SINGLE_CHOICE },
   { pattern: /多选题|多选/, type: QuestionType.MULTIPLE_CHOICE },
   { pattern: /判断题|判断|true.*false|是非题/, type: QuestionType.TRUE_FALSE },
@@ -49,7 +49,7 @@ const TYPE_TEXT_MAP: Array<{ pattern: RegExp; type: QuestionType }> = [
   { pattern: /匹配题|匹配/, type: QuestionType.MATCHING },
   { pattern: /完形填空|补全对话/, type: QuestionType.CLOZE },
   { pattern: /计算题|计算/, type: QuestionType.CALCULATION },
-  { pattern: /排序题|排序/, type: QuestionType.ORDERING },
+  { pattern: /排序题|排序/, type: QuestionType.ORDERING }
 ]
 
 // ============ 题型检测 ============
@@ -133,7 +133,7 @@ function extractChoiceOptions(element: Element): string[] {
   // 策略A：OUCHN 风格 - .option .option-content
   const ouchnOptions = element.querySelectorAll(OUCHN_OPTION_SELECTOR)
   if (ouchnOptions.length > 0) {
-    ouchnOptions.forEach(optEl => {
+    ouchnOptions.forEach((optEl) => {
       // 优先 .option-content
       const contentEl = optEl.querySelector(OUCHN_OPTION_CONTENT_SELECTOR)
       if (contentEl) {
@@ -156,7 +156,7 @@ function extractChoiceOptions(element: Element): string[] {
   // 关键：按顺序遍历，保持选项顺序
   const moodleRows = element.querySelectorAll('.answer .r0, .answer .r1, .answer .r2, .answer .r3, .answer .r4, .answer .r5')
   if (moodleRows.length > 0) {
-    moodleRows.forEach(row => {
+    moodleRows.forEach((row) => {
       // 优先 .flex-fill（Bootstrap 5）
       const flexFill = row.querySelector('.flex-fill')
       if (flexFill) {
@@ -196,7 +196,7 @@ function extractChoiceOptions(element: Element): string[] {
   // 策略C：.answer 内的所有 label（按顺序）
   const answerLabels = element.querySelectorAll('.answer label')
   if (answerLabels.length > 0) {
-    answerLabels.forEach(label => {
+    answerLabels.forEach((label) => {
       const text = cleanText(label.textContent || '')
       if (text && !isTextPlaceholder(text.trim())) {
         tryPush(text)
@@ -221,7 +221,7 @@ function extractChoiceOptions(element: Element): string[] {
 
   // 策略E：全局 label 扫描（兜底）
   const allLabels = element.querySelectorAll('label')
-  allLabels.forEach(label => {
+  allLabels.forEach((label) => {
     const text = cleanText(label.textContent || '')
     if (text && !isTextPlaceholder(text.trim())) {
       tryPush(text)
@@ -247,7 +247,7 @@ function extractTrueFalseOptions(element: Element): string[] {
   }
 
   // 策略1：label[for] 关联
-  element.querySelectorAll('input[type="radio"]').forEach(radio => {
+  element.querySelectorAll('input[type="radio"]').forEach((radio) => {
     const id = (radio as HTMLInputElement).id
     if (id) {
       const label = document.querySelector(`label[for="${id}"]`)
@@ -260,7 +260,7 @@ function extractTrueFalseOptions(element: Element): string[] {
   if (options.length >= 2) return options
 
   // 策略2：找包含"对"/"错"文字
-  element.querySelectorAll('label').forEach(label => {
+  element.querySelectorAll('label').forEach((label) => {
     const t = cleanText(label.textContent || '')
     if (t === '对' || t === '错' || t === '正确' || t === '错误' || t === 'true' || t === 'false') {
       tryPush(t)
@@ -324,16 +324,16 @@ function extractSubQuestions(parentElement: Element, parentIndex: number): Quest
       options = extractChoiceOptions(subEl)
     }
 
-    const finalType: QuestionType = 
-      options.length > 0 && type === QuestionType.UNKNOWN 
-        ? QuestionType.SINGLE_CHOICE 
+    const finalType: QuestionType =
+      options.length > 0 && type === QuestionType.UNKNOWN
+        ? QuestionType.SINGLE_CHOICE
         : type
 
     questions.push({
       number: parentIndex * 1000 + subIndex, // 参考：parentIndex * SUB_INDEX_MULTIPLIER + subIndex
       text: description,
       type: finalType,
-      options,
+      options
     })
   })
 
@@ -384,16 +384,16 @@ function buildQuestion(element: Element, index: number): Question | null {
       options = extractChoiceOptions(element)
     }
 
-    const finalType: QuestionType = 
-      options.length > 0 && type === QuestionType.UNKNOWN 
-        ? QuestionType.SINGLE_CHOICE 
+    const finalType: QuestionType =
+      options.length > 0 && type === QuestionType.UNKNOWN
+        ? QuestionType.SINGLE_CHOICE
         : type
 
     return {
       number: index,
       text,
       type: finalType,
-      options,
+      options
     }
   } catch {
     return null
@@ -412,7 +412,7 @@ export class QuizExtractorService {
   extractQuestions(mode: 'smart' | 'brute' | 'ultra'): ExtractResult {
     try {
       if (typeof document === 'undefined') {
-        return { success: false, count: 0, message: 'DOM 不可用', questions: [] }
+        return { success: false, count: 0, message: 'DOM 不可用', questions: []}
       }
 
       // 收集题目元素（兼容 Moodle 和 OUCHN）
@@ -428,11 +428,11 @@ export class QuizExtractorService {
           MOODLE_SUBJECT_SELECTOR,
           OUCHN_SUBJECT_SELECTOR,
           '[class*="question"]',
-          '[id*="question"]',
+          '[id*="question"]'
         ]
         const seenKeys = new Set<string>()
-        selectors.forEach(sel => {
-          document.querySelectorAll(sel).forEach(el => {
+        selectors.forEach((sel) => {
+          document.querySelectorAll(sel).forEach((el) => {
             const key = el.getAttribute('id') || el.className + (el.textContent || '').substring(0, 50)
             if (!seenKeys.has(key)) {
               seenKeys.add(key)
@@ -469,14 +469,14 @@ export class QuizExtractorService {
         message: questions.length > 0
           ? `找到 ${questions.length} 道题目`
           : '未找到任何题目（请确认在答题页）',
-        questions,
+        questions
       }
     } catch (error) {
       return {
         success: false,
         count: 0,
         message: `提取失败: ${error instanceof Error ? error.message : String(error)}`,
-        questions: [],
+        questions: []
       }
     }
   }
@@ -485,7 +485,7 @@ export class QuizExtractorService {
     try {
       if (!questions?.length) return ''
       const parts: string[] = []
-      questions.forEach(q => {
+      questions.forEach((q) => {
         // 子题显示为 "21.1" 格式
         const displayNum = q.number >= 1000
           ? `${Math.floor(q.number / 1000)}.${q.number % 1000}`
