@@ -136,6 +136,7 @@ course-brushing-script/
 │   ├── services/                    # 业务服务
 │   │   ├── videoManager.ts          # 视频播放管理
 │   │   ├── sidebarNavigator.ts      # 侧边栏导航
+│   │   ├── sidebarStatusInjector.ts # 侧边栏状态注入（v2.2.1）
 │   │   ├── homeNavigator.ts         # 课程管理导航
 │   │   ├── courseNavigator.ts       # 课程详情页导航（v2.2.0）
 │   │   ├── courseProgressStore.ts   # 课程刷课进度共享状态（v2.2.0）
@@ -158,6 +159,7 @@ course-brushing-script/
 │       ├── clipboard.ts             # 剪贴板操作
 │       ├── storage.ts               # localStorage 安全读写
 │       └── panel.ts                 # 面板配置统一管理
+│       └── logger.ts                # 日志统一管理
 ├── .github/workflows/               # GitHub Actions
 │   └── build-release.yml            # 构建发布流程
 ├── AGENTS.md                        # AI 代理开发指南

@@ -41,6 +41,7 @@ src/
 ├── services/            # 业务服务
 │   ├── videoManager.ts      # 视频播放管理
 │   ├── sidebarNavigator.ts  # 侧边栏导航
+│   ├── sidebarStatusInjector.ts # 侧边栏状态注入（v2.2.1）
 │   ├── homeNavigator.ts     # 首页课程管理导航
 │   ├── courseNavigator.ts   # 课程详情页导航（v2.2.0）
 │   ├── courseProgressStore.ts # 课程刷课进度共享状态（v2.2.0）
@@ -177,14 +178,14 @@ npx vue-tsc --noEmit
 面板配置：
 ```typescript
 PANEL_CONFIG_MAP: {
-  floating: { width: 56, height: 56, margin: 10, dragThreshold: 5 },
-  quiz: { width: 56, height: 56, margin: 10, dragThreshold: 5 },
-  course: { width: 44, height: 44, margin: 20, dragThreshold: 5 },
-  mod: { width: 56, height: 56, margin: 20, dragThreshold: 5 },
+  floating: { width: 56, height: 56, margin: 30, dragThreshold: 5 },
+  quiz: { width: 56, height: 56, margin: 30, dragThreshold: 5 },
+  course: { width: 44, height: 44, margin: 30, dragThreshold: 5 },
+  mod: { width: 56, height: 56, margin: 30, dragThreshold: 5 },
 }
 ```
 
-> **注意**：course 和 mod 面板使用较大的 margin（20px）是为了确保徽章（badge）能完整显示，不会溢出屏幕边缘。
+> **注意**：所有面板使用 margin: 30px 是为了避免被滚动条遮挡，确保悬浮窗完整显示。
 
 ### [src/utils/url.ts](src/utils/url.ts)
 
@@ -228,6 +229,14 @@ URL 工具函数：
 - `subscribe()` - 订阅进度变化通知
 - `checkCourseCompleted()` - 检查课程是否全部完成
 - 使用 localStorage 持久化，支持跨面板共享刷课状态
+
+### [src/services/sidebarStatusInjector.ts](src/services/sidebarStatusInjector.ts)（v2.2.1）
+
+侧边栏状态注入服务：
+- `injectIntoSidebarNav()` - 在刷课页面侧边栏注入活动完成状态
+- `injectOverallCourseBadge()` - 在面包屑注入课程整体进度
+- 使用 moduleId 精确匹配活动完成状态
+- 从 courseProgressStore 读取完成状态
 
 ### [src/services/courseBookmarkStore.ts](src/services/courseBookmarkStore.ts)（v2.2.0）
 
