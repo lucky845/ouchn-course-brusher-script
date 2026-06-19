@@ -39,70 +39,70 @@
           </div>
 
           <div v-for="(semester, index) in semesters" :key="semester.name" class="semester-section">
-          <div class="semester-header" @click="toggleSemester(semester.name)">
-            <div class="semester-header-left">
-              <span class="semester-arrow" :class="{ expanded: expandedSemesters[semester.name] }">
-                ▶
-              </span>
-              <span class="semester-name">
-                {{ semester.name }}
-                <span v-if="index === 0" class="current-tag">本学期</span>
-              </span>
-            </div>
-            <span class="semester-count">{{ semester.courses.length }}</span>
-          </div>
-          
-          <div v-show="expandedSemesters[semester.name]" class="course-list">
-            <div
-              v-for="course in semester.courses"
-              :key="course.name"
-              class="course-item"
-            >
-              <div class="course-cover">
-                <img v-if="course.coverUrl" :src="course.coverUrl" :alt="course.name" />
-                <div v-else class="course-cover-placeholder">📚</div>
+            <div class="semester-header" @click="toggleSemester(semester.name)">
+              <div class="semester-header-left">
+                <span class="semester-arrow" :class="{ expanded: expandedSemesters[semester.name] }">
+                  ▶
+                </span>
+                <span class="semester-name">
+                  {{ semester.name }}
+                  <span v-if="index === 0" class="current-tag">本学期</span>
+                </span>
               </div>
-              <div class="course-content">
-                <div class="course-row">
-                  <div class="course-info">
-                    <span class="course-name" :title="course.name">{{ course.name }}</span>
-                    <span v-if="course.isCompleted" class="completed-badge">✓</span>
-                  </div>
-                  <div class="course-right">
-                    <span class="progress-text" :class="{ completed: course.isCompleted }">
-                      {{ course.progress }}%
-                    </span>
-                  </div>
+              <span class="semester-count">{{ semester.courses.length }}</span>
+            </div>
+
+            <div v-show="expandedSemesters[semester.name]" class="course-list">
+              <div
+                v-for="course in semester.courses"
+                :key="course.name"
+                class="course-item"
+              >
+                <div class="course-cover">
+                  <img v-if="course.coverUrl" :src="course.coverUrl" :alt="course.name" />
+                  <div v-else class="course-cover-placeholder">📚</div>
                 </div>
-                <div class="course-progress">
-                  <div class="progress-bar">
-                    <div 
-                      class="progress-fill" 
-                      :class="{ completed: course.isCompleted }"
-                      :style="{ width: course.progress + '%' }"
-                    ></div>
+                <div class="course-content">
+                  <div class="course-row">
+                    <div class="course-info">
+                      <span class="course-name" :title="course.name">{{ course.name }}</span>
+                      <span v-if="course.isCompleted" class="completed-badge">✓</span>
+                    </div>
+                    <div class="course-right">
+                      <span class="progress-text" :class="{ completed: course.isCompleted }">
+                        {{ course.progress }}%
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div class="course-footer">
-                  <div class="course-meta">
-                    <span v-if="course.credits > 0" class="meta-item">{{ course.credits }}分</span>
-                    <span v-if="course.score > 0" class="meta-item">{{ course.score }}分</span>
-                    <span v-if="course.hasHomework" class="meta-item homework">
-                      📝 {{ course.pendingTasks }}项
-                    </span>
+                  <div class="course-progress">
+                    <div class="progress-bar">
+                      <div
+                        class="progress-fill"
+                        :class="{ completed: course.isCompleted }"
+                        :style="{ width: course.progress + '%' }"
+                      ></div>
+                    </div>
                   </div>
-                  <button class="action-btn" @click="navigateToCourse(course)">
-                    {{ course.isCompleted ? '查看' : '去学习' }}
-                  </button>
+                  <div class="course-footer">
+                    <div class="course-meta">
+                      <span v-if="course.credits > 0" class="meta-item">{{ course.credits }}分</span>
+                      <span v-if="course.score > 0" class="meta-item">{{ course.score }}分</span>
+                      <span v-if="course.hasHomework" class="meta-item homework">
+                        📝 {{ course.pendingTasks }}项
+                      </span>
+                    </div>
+                    <button class="action-btn" @click="navigateToCourse(course)">
+                      {{ course.isCompleted ? '查看' : '去学习' }}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-            
-            <div v-if="semester.courses.length === 0" class="empty-courses">
-              暂无课程数据
+
+              <div v-if="semester.courses.length === 0" class="empty-courses">
+                暂无课程数据
+              </div>
             </div>
           </div>
-        </div>
         </div>
 
         <div class="quick-actions">
@@ -131,7 +131,7 @@ const {
   isDragging,
   onDragStart,
   didDragMove,
-  resetDragMove,
+  resetDragMove
 } = useDraggablePanel(PanelType.COURSE, BTN_WIDTH, BTN_HEIGHT, MARGIN, DRAG_THRESHOLD)
 
 // ===== 状态 =====
@@ -208,7 +208,7 @@ function refreshCourses(): void {
   semesters.value = result
 
   // 默认只展开本学期课程
-  result.forEach(s => {
+  result.forEach((s) => {
     if (s.isCurrent) {
       expandedSemesters.value[s.name] = true
     } else {
@@ -728,11 +728,11 @@ onUnmounted(() => {
     right: 10px;
     max-height: 80vh;
   }
-  
+
   .course-item {
     padding: 8px;
   }
-  
+
   .course-cover {
     width: 45px;
     height: 45px;

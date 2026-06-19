@@ -44,7 +44,7 @@ export class AntiDetectionService {
 
   stop(): void {
     try {
-      this.intervals.forEach(id => {
+      this.intervals.forEach((id) => {
         try {
           window.clearInterval(id)
         } catch {

@@ -12,7 +12,7 @@ const PLACEHOLDER_TEXTS = new Set([
   'clear my choice',
   'select one',
   '回答',
-  '答题',
+  '答题'
 ])
 
 /** 系统提示关键词 - 包含这些关键词的文本应视为非题目内容 */
@@ -30,13 +30,13 @@ const SYSTEM_TAGS = [
   '标记试题',
   '试题正文',
   '还未作答',
-  '满分',
+  '满分'
 ]
 
 /**
  * 判断文本是否为占位符文本（应剔除）
  */
-export function isPlaceholderText (text: string): boolean {
+export function isPlaceholderText(text: string): boolean {
   const t = text.trim()
   if (!t) return true
   if (t.length <= 1) return true
@@ -50,11 +50,11 @@ export function isPlaceholderText (text: string): boolean {
  * @param raw 原始文本
  * @returns 清理后的纯文本
  */
-export function cleanText (raw: string): string {
+export function cleanText(raw: string): string {
   if (!raw) return ''
   let text = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
   text = text.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n')
-  const lines = text.split('\n').map(l => l.trim()).filter(l => {
+  const lines = text.split('\n').map(l => l.trim()).filter((l) => {
     if (!l) return false
     for (const tag of SYSTEM_TAGS) {
       if (l.includes(tag)) return false
@@ -67,7 +67,7 @@ export function cleanText (raw: string): string {
 /**
  * 判断文本是否为占位符（基于去重时检查）
  */
-export function isTextPlaceholder (text: string): boolean {
+export function isTextPlaceholder(text: string): boolean {
   const trimmed = text.trim()
   if (!trimmed) return true
   return PLACEHOLDER_TEXTS.has(trimmed)

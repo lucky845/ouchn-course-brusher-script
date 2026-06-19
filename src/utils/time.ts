@@ -9,7 +9,7 @@
  *   123456ms -> "2分03秒"
  *   1234ms -> "1秒"
  */
-export function formatDuration (ms: number): string {
+export function formatDuration(ms: number): string {
   if (!ms || ms <= 0) return '0秒'
   const totalSec = Math.floor(ms / 1000)
   const h = Math.floor(totalSec / 3600)
@@ -27,7 +27,7 @@ export function formatDuration (ms: number): string {
 /**
  * 格式化为紧凑时间字符串（如 "12:34:56"）
  */
-export function formatClock (): string {
+export function formatClock(): string {
   const d = new Date()
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
 }

@@ -3,7 +3,7 @@ import { settingsStoreService } from './settingsStore'
 import { formatDuration } from '../utils/time'
 
 class ProgressStatsService {
-  getStats (sidebar: Element | null, courseItems: HTMLLinkElement[]): ProgressStats {
+  getStats(sidebar: Element | null, courseItems: HTMLLinkElement[]): ProgressStats {
     try {
       const sidebarItems = sidebar ? sidebar.querySelectorAll('a, li, .item') : []
       const total = sidebar ? sidebarItems.length : courseItems.length
@@ -33,7 +33,7 @@ class ProgressStatsService {
         current,
         percentage,
         sessionTime,
-        itemsCompleted: session.itemsDone,
+        itemsCompleted: session.itemsDone
       }
     } catch {
       const session = settingsStoreService.sessionGet()
@@ -42,12 +42,12 @@ class ProgressStatsService {
         current: 0,
         percentage: 0,
         sessionTime: session.startTime > 0 ? Date.now() - session.startTime : 0,
-        itemsCompleted: session.itemsDone,
+        itemsCompleted: session.itemsDone
       }
     }
   }
 
-  formatTime (ms: number): string {
+  formatTime(ms: number): string {
     return formatDuration(ms)
   }
 }

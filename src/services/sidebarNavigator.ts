@@ -9,7 +9,7 @@ export class SidebarNavigatorService {
   /**
    * 查找侧边栏导航容器
    */
-  findSidebar (): Element | null {
+  findSidebar(): Element | null {
     try {
       if (typeof document === 'undefined') return null
 
@@ -27,7 +27,7 @@ export class SidebarNavigatorService {
   /**
    * 从某个容器下提取活动链接（仅保留 /mod/ 开头的，去重）
    */
-  private extractLinks (container: Element | Document): NavItem[] {
+  private extractLinks(container: Element | Document): NavItem[] {
     try {
       const anchors = container.querySelectorAll<HTMLAnchorElement>('a[href]')
       if (!anchors || anchors.length === 0) return []
@@ -56,7 +56,7 @@ export class SidebarNavigatorService {
   /**
    * 从课程主页（课程目录页）提取活动链接
    */
-  getItemsFromCoursePage (): NavItem[] {
+  getItemsFromCoursePage(): NavItem[] {
     try {
       if (typeof document === 'undefined') return []
 
@@ -88,14 +88,14 @@ export class SidebarNavigatorService {
     }
   }
 
-  getItems (sidebar: Element): NavItem[] {
+  getItems(sidebar: Element): NavItem[] {
     return this.extractLinks(sidebar)
   }
 
   /**
    * 从侧边栏 + 课程主页中收集所有活动链接
    */
-  getAllItems (): NavItem[] {
+  getAllItems(): NavItem[] {
     try {
       const merged: NavItem[] = []
       const seen = new Set<string>()
@@ -135,7 +135,7 @@ export class SidebarNavigatorService {
   /**
    * 从活动列表中查找当前页的索引
    */
-  findCurrentIndex (items: NavItem[]): number {
+  findCurrentIndex(items: NavItem[]): number {
     try {
       if (!items || items.length === 0) return -1
       if (typeof window === 'undefined' || !window.location) return -1
@@ -207,7 +207,7 @@ export class SidebarNavigatorService {
   /**
    * 查找"下一个活动"导航链接（学习内容页上的下一个按钮）
    */
-  findNextActivityLink (): string | null {
+  findNextActivityLink(): string | null {
     try {
       if (typeof document === 'undefined') return null
 
@@ -246,7 +246,7 @@ export class SidebarNavigatorService {
   /**
    * 查找"返回课程主页"的链接
    */
-  findCourseHomeLink (): string | null {
+  findCourseHomeLink(): string | null {
     try {
       if (typeof document === 'undefined') return null
 
@@ -289,7 +289,7 @@ export class SidebarNavigatorService {
   /**
    * 判断当前页是否为课程/目录页
    */
-  isCoursePage (): boolean {
+  isCoursePage(): boolean {
     try {
       const url = window.location.href
       if (url.indexOf('/course/view.php') !== -1) return true
@@ -305,7 +305,7 @@ export class SidebarNavigatorService {
   /**
    * 判断当前页是否为学习内容页
    */
-  isActivityPage (): boolean {
+  isActivityPage(): boolean {
     try {
       return window.location.href.indexOf(MOD_URL_MARKER) !== -1
     } catch {

@@ -9,6 +9,7 @@ import HomePanel from './components/HomePanel.vue'
 import CoursePanel from './components/CoursePanel.vue'
 import { writeStorageString, readStorageString, removeStorage } from './utils/storage'
 import { isStudentHomePage, isQuizPage, isCoursePage, isModPage } from './utils/url'
+import { sidebarStatusInjector } from './services/sidebarStatusInjector'
 
 const STORAGE_KEY = 'ouchn_brusher_panel'
 
@@ -26,26 +27,26 @@ const PANEL_CONFIGS: Record<PanelTypeKey, PanelConfig> = {
     id: 'home-brushing-panel',
     type: 'home',
     label: '学生首页',
-    component: HomePanel,
+    component: HomePanel
   },
   quiz: {
     id: 'quiz-brushing-panel',
     type: 'quiz',
     label: '答题页面',
-    component: QuizPanel,
+    component: QuizPanel
   },
   course: {
     id: 'course-brushing-panel',
     type: 'course',
     label: '课程页面',
-    component: CoursePanel,
+    component: CoursePanel
   },
   mod: {
     id: 'mod-brushing-panel',
     type: 'mod',
     label: '刷课页面',
-    component: FloatingPanel,
-  },
+    component: FloatingPanel
+  }
 }
 
 let isInitializing = false
@@ -54,7 +55,7 @@ let initializedPanel = ''
 /**
  * 检测当前应加载的面板类型
  */
-function detectPanelType (): PanelTypeKey | null {
+function detectPanelType(): PanelTypeKey | null {
   if (isStudentHomePage()) return 'home'
   if (isQuizPage()) return 'quiz'
   if (isCoursePage()) return 'course'
@@ -65,7 +66,7 @@ function detectPanelType (): PanelTypeKey | null {
 /**
  * 挂载指定类型的 Vue 面板
  */
-function mountPanel (panelType: PanelTypeKey): void {
+function mountPanel(panelType: PanelTypeKey): void {
   const config = PANEL_CONFIGS[panelType]
   const container = document.createElement('div')
   container.id = config.id
@@ -80,7 +81,7 @@ function mountPanel (panelType: PanelTypeKey): void {
 /**
  * 检查当前页面上是否已经存在任何面板容器
  */
-function hasExistingPanel (): boolean {
+function hasExistingPanel(): boolean {
   return !!document.getElementById('home-brushing-panel') ||
          !!document.getElementById('quiz-brushing-panel') ||
          !!document.getElementById('course-brushing-panel') ||
@@ -90,7 +91,7 @@ function hasExistingPanel (): boolean {
 /**
  * 尝试初始化：检测页面类型 → 挂载对应面板
  */
-function init (): void {
+function init(): void {
   if (isInitializing) {
     console.log('[刷课脚本] 正在初始化中，跳过')
     return
@@ -121,6 +122,8 @@ function init (): void {
 
     isInitializing = true
     mountPanel(panelType)
+    // 初始化侧边栏课程状态注入服务
+    sidebarStatusInjector.init()
     console.log('[刷课脚本] ✓ 初始化完成')
     isInitializing = false
 
@@ -142,10 +145,10 @@ function init (): void {
 /**
  * 调度初始化：在多个时间点 / 事件下尝试启动
  */
-export function scheduleInit (): void {
+export function scheduleInit(): void {
   console.log('[刷课脚本] 调度初始化')
 
-  const runInit = () => {
+  const runInit = (): void => {
     if (initializedPanel) {
       console.log('[刷课脚本] 已初始化过:', initializedPanel)
       return
@@ -153,7 +156,7 @@ export function scheduleInit (): void {
     init()
   }
 
-  const checkAndInit = () => {
+  const checkAndInit = (): void => {
     if (initializedPanel) return
 
     const saved = readStorageString(STORAGE_KEY)

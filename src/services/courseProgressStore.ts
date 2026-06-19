@@ -17,19 +17,17 @@ export interface CourseProgress {
   isBrushing: boolean
   brushingStartTime: number
   lastUpdateTime: number
-  /** 已完成的活动索引列表 */
-  completedActivities: number[]
-  /** 当前正在刷的活动索引 */
-  currentActivityIndex: number
+  /** 已完成的活动 Map：key=moduleId, value=是否完成 */
+  completedActivities: Record<string, boolean>
+  /** 当前正在刷的活动 moduleId */
+  currentActivityId: string | null
   totalActivities: number
   /** 是否已完成（所有活动都完成） */
   isCompleted: boolean
 }
 
 /** 所有课程的进度数据 */
-export interface CourseProgressMap {
-  [courseId: string]: CourseProgress
-}
+export type CourseProgressMap = Record<string, CourseProgress>
 
 export interface CourseProgressStoreData {
   currentCourseId: string | null
@@ -38,41 +36,41 @@ export interface CourseProgressStoreData {
 
 const DEFAULT_DATA: CourseProgressStoreData = {
   currentCourseId: null,
-  courses: {},
+  courses: {}
 }
 
-function isValidData (data: unknown): data is CourseProgressStoreData {
+function isValidData(data: unknown): data is CourseProgressStoreData {
   if (data === null || typeof data !== 'object') return false
   const d = data as any
   return typeof d.courses === 'object' && d.courses !== null
 }
 
 /** 课程进度监听器 */
-type ProgressListener = (data: CourseProgressStoreData) => void
+type ProgressListener = (data: CourseProgressStoreData)=> void
 
 export class CourseProgressStore {
   private data: CourseProgressStoreData = { ...DEFAULT_DATA }
-  private listeners: Set<ProgressListener> = new Set()
+  private listeners = new Set<ProgressListener>()
   private updateTimer: number | null = null
 
-  constructor () {
+  constructor() {
     this.load()
   }
 
   /** 从 localStorage 加载数据 */
-  private load (): void {
+  private load(): void {
     const parsed = readStorage<CourseProgressStoreData>(COURSE_PROGRESS_KEY, DEFAULT_DATA, isValidData)
     this.data = { ...DEFAULT_DATA, ...parsed }
   }
 
   /** 保存数据到 localStorage */
-  private save (): void {
+  private save(): void {
     writeStorage(COURSE_PROGRESS_KEY, this.data)
     this.notifyListeners()
   }
 
   /** 通知所有监听器 */
-  private notifyListeners (): void {
+  private notifyListeners(): void {
     this.listeners.forEach((listener) => {
       try {
         listener({ ...this.data })
@@ -83,7 +81,7 @@ export class CourseProgressStore {
   }
 
   /** 订阅进度变化 */
-  subscribe (listener: ProgressListener): () => void {
+  subscribe(listener: ProgressListener): ()=> void {
     this.listeners.add(listener)
     // 立即调用一次，传递当前数据
     try {
@@ -97,22 +95,22 @@ export class CourseProgressStore {
   }
 
   /** 获取当前课程进度数据 */
-  getData (): CourseProgressStoreData {
+  getData(): CourseProgressStoreData {
     return { ...this.data }
   }
 
   /** 获取指定课程的进度 */
-  getCourseProgress (courseId: string): CourseProgress | null {
+  getCourseProgress(courseId: string): CourseProgress | null {
     return this.data.courses[courseId] || null
   }
 
   /** 获取当前正在刷的课程 ID */
-  getCurrentCourseId (): string | null {
+  getCurrentCourseId(): string | null {
     return this.data.currentCourseId
   }
 
   /** 开始刷课 - 初始化课程进度 */
-  startBrushing (courseId: string, courseName: string, totalActivities: number): void {
+  startBrushing(courseId: string, courseName: string, totalActivities: number): void {
     if (!this.data.courses[courseId]) {
       this.data.courses[courseId] = {
         courseId,
@@ -122,10 +120,10 @@ export class CourseProgressStore {
         isBrushing: false,
         brushingStartTime: 0,
         lastUpdateTime: 0,
-        completedActivities: [],
-        currentActivityIndex: 0,
+        completedActivities: {},
+        currentActivityId: null,
         totalActivities,
-        isCompleted: false,
+        isCompleted: false
       }
     }
 
@@ -140,12 +138,12 @@ export class CourseProgressStore {
   }
 
   /** 更新当前刷课活动 */
-  updateCurrentActivity (activityIndex: number, activityName: string, activityUrl: string): void {
+  updateCurrentActivity(activityId: string, activityName: string, activityUrl: string): void {
     const courseId = this.data.currentCourseId
     if (!courseId || !this.data.courses[courseId]) return
 
     const course = this.data.courses[courseId]
-    course.currentActivityIndex = activityIndex
+    course.currentActivityId = activityId
     course.lastActivityName = activityName
     course.lastActivityUrl = activityUrl
     course.lastUpdateTime = Date.now()
@@ -155,38 +153,38 @@ export class CourseProgressStore {
   }
 
   /** 标记活动完成 */
-  markActivityCompleted (activityIndex: number): void {
+  markActivityCompleted(activityId: string): void {
     const courseId = this.data.currentCourseId
     if (!courseId || !this.data.courses[courseId]) return
 
     const course = this.data.courses[courseId]
-    if (!course.completedActivities.includes(activityIndex)) {
-      course.completedActivities.push(activityIndex)
+    if (!course.completedActivities[activityId]) {
+      course.completedActivities[activityId] = true
       course.lastUpdateTime = Date.now()
-      
+
       // 检查课程是否全部完成
       this.checkCourseCompleted(courseId)
-      
+
       this.debouncedSave()
     }
   }
 
   /** 检查课程是否全部完成 */
-  private checkCourseCompleted (courseId: string): void {
+  private checkCourseCompleted(courseId: string): void {
     const course = this.data.courses[courseId]
     if (!course) return
-    
+
+    const completedCount = Object.keys(course.completedActivities).length
     const wasCompleted = course.isCompleted
-    course.isCompleted = course.totalActivities > 0 && 
-      course.completedActivities.length >= course.totalActivities
-    
+    course.isCompleted = course.totalActivities > 0 && completedCount >= course.totalActivities
+
     if (course.isCompleted && !wasCompleted) {
       console.log(`[CourseProgressStore] 课程完成: ${course.courseName}`)
     }
   }
 
   /** 停止刷课 */
-  stopBrushing (): void {
+  stopBrushing(): void {
     const courseId = this.data.currentCourseId
     if (!courseId) return
 
@@ -202,7 +200,7 @@ export class CourseProgressStore {
   }
 
   /** 从课程详情页信息更新课程进度 */
-  syncFromCourseInfo (courseInfo: CourseDetailInfo): void {
+  syncFromCourseInfo(courseInfo: CourseDetailInfo): void {
     const courseId = courseInfo.courseId
     if (!courseId) return
 
@@ -215,10 +213,10 @@ export class CourseProgressStore {
         isBrushing: false,
         brushingStartTime: 0,
         lastUpdateTime: Date.now(),
-        completedActivities: [],
-        currentActivityIndex: 0,
+        completedActivities: {},
+        currentActivityId: null,
         totalActivities: courseInfo.chapters.reduce((sum, ch) => sum + ch.activities.length, 0),
-        isCompleted: false,
+        isCompleted: false
       }
     } else {
       // 更新课程名称
@@ -227,21 +225,19 @@ export class CourseProgressStore {
       this.data.courses[courseId].lastUpdateTime = Date.now()
     }
 
-    // 从课程详情页同步已完成的活动状态
-    let activityIndex = 0
-    const completedIndices: number[] = []
+    // 从课程详情页同步已完成的活动状态（使用 moduleId 作为 key）
+    const completedMap: Record<string, boolean> = {}
     courseInfo.chapters.forEach((chapter) => {
       chapter.activities.forEach((activity) => {
-        if (activity.status === ChapterStatus.COMPLETED) {
-          completedIndices.push(activityIndex)
+        if (activity.moduleId && activity.status === ChapterStatus.COMPLETED) {
+          completedMap[activity.moduleId] = true
         }
-        activityIndex++
       })
     })
-    
+
     // 更新完成列表
-    this.data.courses[courseId].completedActivities = completedIndices
-    
+    this.data.courses[courseId].completedActivities = completedMap
+
     // 检查课程是否完成
     this.checkCourseCompleted(courseId)
 
@@ -250,14 +246,15 @@ export class CourseProgressStore {
   }
 
   /** 获取课程完成百分比 */
-  getCourseCompletionPercent (courseId: string): number {
+  getCourseCompletionPercent(courseId: string): number {
     const course = this.data.courses[courseId]
     if (!course || course.totalActivities === 0) return 0
-    return Math.round((course.completedActivities.length / course.totalActivities) * 100)
+    const completedCount = Object.keys(course.completedActivities).length
+    return Math.round((completedCount / course.totalActivities) * 100)
   }
 
   /** 防抖保存 */
-  private debouncedSave (): void {
+  private debouncedSave(): void {
     if (this.updateTimer !== null) {
       clearTimeout(this.updateTimer)
     }
@@ -268,13 +265,13 @@ export class CourseProgressStore {
   }
 
   /** 清空所有数据 */
-  clear (): void {
+  clear(): void {
     this.data = { ...DEFAULT_DATA }
     this.save()
   }
 
   /** 清空指定课程的数据 */
-  clearCourse (courseId: string): void {
+  clearCourse(courseId: string): void {
     if (this.data.courses[courseId]) {
       delete this.data.courses[courseId]
       if (this.data.currentCourseId === courseId) {

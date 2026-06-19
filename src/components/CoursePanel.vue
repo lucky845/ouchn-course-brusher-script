@@ -76,16 +76,20 @@
 
         <!-- 快捷操作 -->
         <div class="quick-actions">
-          <button 
-            class="action-btn expand-btn" 
+          <button
+            class="action-btn expand-btn"
             :class="{ active: expandMode === 'expand' }"
             @click="expandAll"
-          >展开全部</button>
-          <button 
-            class="action-btn collapse-btn" 
+          >
+            展开全部
+          </button>
+          <button
+            class="action-btn collapse-btn"
             :class="{ active: expandMode === 'collapse' }"
             @click="collapseAll"
-          >折叠全部</button>
+          >
+            折叠全部
+          </button>
           <button class="action-btn refresh" @click="refreshCourse">🔄 刷新</button>
         </div>
 
@@ -139,7 +143,7 @@
           <button class="action-btn primary" @click="saveBookmark">
             🔖 保存当前位置
           </button>
-          <button class="action-btn" @click="loadLastBookmark" :disabled="!lastBookmark">
+          <button class="action-btn" :disabled="!lastBookmark" @click="loadLastBookmark">
             ⏪ 回到上次
           </button>
         </div>
@@ -342,7 +346,7 @@ const {
   isDragging,
   onDragStart,
   didDragMove,
-  resetDragMove,
+  resetDragMove
 } = useDraggablePanel(PanelType.COURSE, BTN_WIDTH, BTN_HEIGHT, MARGIN, DRAG_THRESHOLD)
 
 // ===== 标签页 =====
@@ -350,7 +354,7 @@ const tabs = [
   { id: 'chapters', label: '章节', icon: '📚' },
   { id: 'bookmarks', label: '书签', icon: '🔖' },
   { id: 'search', label: '搜索', icon: '🔍' },
-  { id: 'reminders', label: '提醒', icon: '⏰' },
+  { id: 'reminders', label: '提醒', icon: '⏰' }
 ]
 const activeTab = ref('chapters')
 
@@ -378,7 +382,7 @@ const newReminder = ref({
   time: '20:00',
   weekday: 1,
   deadline: '',
-  description: '',
+  description: ''
 })
 
 // ===== 计算属性 =====
@@ -437,7 +441,7 @@ const currentReminders = computed(() => {
 })
 
 // ===== 订阅进度变化 =====
-let unsubscribe: (() => void) | null = null
+let unsubscribe: (()=> void) | null = null
 
 function subscribeProgress(): void {
   unsubscribe = courseProgressStore.subscribe((data) => {
@@ -486,6 +490,8 @@ function refreshCourse(): void {
         expandedChapters.value[index] = true
       }
     })
+    // 将课程详情页的进度状态同步到 courseProgressStore，供侧边栏状态注入使用
+    courseProgressStore.syncFromCourseInfo(courseInfo.value)
   }
 }
 
@@ -526,7 +532,7 @@ function getActivityIcon(type: string): string {
     '协作活动': '👥',
     '文件夹': '📁',
     '标签': '🏷️',
-    '未知': '📌',
+    '未知': '📌'
   }
   return iconMap[type] || '📌'
 }
@@ -571,7 +577,7 @@ function getResultTypeLabel(type: string): string {
   const labels: Record<string, string> = {
     chapter: '📚 章节',
     activity: '📌 活动',
-    content: '📝 内容',
+    content: '📝 内容'
   }
   return labels[type] || type
 }
@@ -612,7 +618,7 @@ function addReminder(): void {
     time: '20:00',
     weekday: 1,
     deadline: '',
-    description: '',
+    description: ''
   }
   showAddReminder.value = false
 }

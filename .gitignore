@@ -9,3 +9,6 @@ package-lock.json
 AGENTS.md
 **/ouchn-course-brusher-vue.user.js
 .DS_Store
+
+.eslintcache
+*.tsbuildinfo

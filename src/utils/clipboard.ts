@@ -7,7 +7,7 @@
  * 尝试将文本复制到剪贴板
  * @returns 是否成功
  */
-export async function copyToClipboard (text: string): Promise<boolean> {
+export async function copyToClipboard(text: string): Promise<boolean> {
   try {
     if (!text) return false
 

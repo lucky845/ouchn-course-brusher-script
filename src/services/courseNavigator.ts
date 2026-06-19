@@ -33,7 +33,7 @@ export class CourseNavigatorService {
         overallProgress,
         chapters,
         totalChapters: chapters.length,
-        completedChapters,
+        completedChapters
       }
 
       return this.courseInfo
@@ -153,7 +153,7 @@ export class CourseNavigatorService {
       progress,
       element: section,
       linkUrl,
-      activities,
+      activities
     }
   }
 
@@ -209,12 +209,17 @@ export class CourseNavigatorService {
     // 提取活动完成状态
     const status = this.getActivityStatus(el)
 
+    // 提取 moduleId（从 li.activity 的 id 属性，如 "module-1764"）
+    const moduleIdMatch = el.id.match(/^module-(\d+)$/)
+    const moduleId = moduleIdMatch ? moduleIdMatch[1] : undefined
+
     return {
       name,
       status,
       type,
+      moduleId,
       linkUrl: href,
-      element: el,
+      element: el
     }
   }
 
@@ -276,7 +281,7 @@ export class CourseNavigatorService {
   /**
    * 计算章节进度和状态
    */
-  private calculateChapterProgress(activities: ActivityItem[]): { status: ChapterStatus; progress: number } {
+  private calculateChapterProgress(activities: ActivityItem[]): { status: ChapterStatus, progress: number } {
     if (activities.length === 0) {
       return { status: ChapterStatus.NOT_STARTED, progress: 0 }
     }

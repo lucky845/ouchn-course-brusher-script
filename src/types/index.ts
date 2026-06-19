@@ -1,27 +1,27 @@
 export enum SpeedMode {
   NORMAL = 'normal',
   FAST = 'fast',
-  STEALTH = 'stealth',
+  STEALTH = 'stealth'
 }
 
 export enum PanelEdge {
   LEFT = 'left',
   RIGHT = 'right',
-  NONE = 'none',
+  NONE = 'none'
 }
 
 export enum PanelType {
   FLOATING = 'floating',
   COURSE = 'course',
   QUIZ = 'quiz',
-  MOD = 'mod',
+  MOD = 'mod'
 }
 
 export const PLAYBACK_RATES = {
   NORMAL: 1,
   FAST_1_5: 1.5,
   FAST_2: 2,
-  FAST_3: 3,
+  FAST_3: 3
 } as const
 
 export type PlaybackRate = typeof PLAYBACK_RATES[keyof typeof PLAYBACK_RATES]
@@ -41,7 +41,7 @@ export enum QuestionType {
   UNKNOWN = '未知题型',
   ESSAY = '论述题',
   FILL_BLANK = '填空题',
-  COMPREHENSIVE = '综合题',
+  COMPREHENSIVE = '综合题'
 }
 
 export interface Question {
@@ -129,7 +129,7 @@ export interface SemesterInfo {
 export enum ChapterStatus {
   COMPLETED = 'completed',
   IN_PROGRESS = 'in_progress',
-  NOT_STARTED = 'not_started',
+  NOT_STARTED = 'not_started'
 }
 
 export interface ChapterItem {
@@ -145,6 +145,7 @@ export interface ActivityItem {
   name: string
   type: string
   status: ChapterStatus
+  moduleId?: string  // 活动模块ID，如 "1764"
   url?: string
   element?: HTMLElement
 }

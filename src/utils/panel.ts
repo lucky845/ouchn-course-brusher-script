@@ -22,30 +22,30 @@ export const PANEL_CONFIG_MAP: Record<PanelType, PanelConfig> = {
   [PanelType.FLOATING]: {
     width: 56,
     height: 56,
-    margin: 10,
-    dragThreshold: 5,
+    margin: 30,
+    dragThreshold: 5
   },
   [PanelType.QUIZ]: {
     width: 56,
     height: 56,
-    margin: 10,
-    dragThreshold: 5,
+    margin: 30,
+    dragThreshold: 5
   },
   [PanelType.COURSE]: {
     width: 44,
     height: 44,
-    margin: 20,
-    dragThreshold: 5,
+    margin: 30,
+    dragThreshold: 5
   },
   [PanelType.MOD]: {
     width: 56,
     height: 56,
-    margin: 20,
-    dragThreshold: 5,
-  },
+    margin: 30,
+    dragThreshold: 5
+  }
 }
 
 /** 获取指定类型面板的配置 */
-export function getPanelConfig (panelType: PanelType): PanelConfig {
+export function getPanelConfig(panelType: PanelType): PanelConfig {
   return PANEL_CONFIG_MAP[panelType] || PANEL_CONFIG_MAP[PanelType.FLOATING]
 }

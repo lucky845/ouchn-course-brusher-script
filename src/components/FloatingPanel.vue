@@ -80,14 +80,14 @@
           <div class="toggle-row">
             <span>🔒 防息屏</span>
             <label class="switch">
-              <input type="checkbox" v-model="wakeLockOn" @change="onToggleWakeLock" />
+              <input v-model="wakeLockOn" type="checkbox" @change="onToggleWakeLock" />
               <span class="slider"></span>
             </label>
           </div>
           <div class="toggle-row">
             <span>🛡️ 防检测</span>
             <label class="switch">
-              <input type="checkbox" v-model="antiDetectionOn" @change="onToggleAntiDetection" />
+              <input v-model="antiDetectionOn" type="checkbox" @change="onToggleAntiDetection" />
               <span class="slider"></span>
             </label>
           </div>
@@ -111,12 +111,16 @@
             class="action-btn start"
             :disabled="isRunning"
             @click="() => startBrushing()"
-          >▶ 开始</button>
+          >
+            ▶ 开始
+          </button>
           <button
             class="action-btn stop"
             :disabled="!isRunning"
             @click="stopBrushing"
-          >⏹ 停止</button>
+          >
+            ⏹ 停止
+          </button>
         </div>
 
         <!-- 调试日志 -->
@@ -125,7 +129,9 @@
             v-for="(log, i) in logs.slice(-8)"
             :key="i"
             class="log-line"
-          >[{{ log.time }}] {{ log.text }}</div>
+          >
+            [{{ log.time }}] {{ log.text }}
+          </div>
         </div>
       </div>
     </div>
@@ -156,7 +162,7 @@ const {
   onDragStart,
   didDragMove,
   resetDragMove,
-  snapEdge,
+  snapEdge
 } = useDraggablePanel(PanelType.FLOATING, BTN_WIDTH, BTN_HEIGHT, MARGIN, DRAG_THRESHOLD)
 // 保留本地引用，供 onMounted 中 edge 判断逻辑使用（无实际重定义冲突）
 
@@ -175,10 +181,10 @@ const stats = reactive({
   current: 0,
   percentage: 0,
   itemsDone: 0,
-  elapsedTime: '', // 本次刷课时间显示，如 "12分30秒"
+  elapsedTime: '' // 本次刷课时间显示，如 "12分30秒"
 })
 
-const logs = reactive<Array<{ time: string; text: string }>>([])
+const logs = reactive<Array<{ time: string, text: string }>>([])
 
 // 定时器
 let pageTimer: number | null = null
@@ -190,12 +196,12 @@ let timeTimer: number | null = null // 刷新"本次刷课时间"显示
 const speedModeOptions = [
   { value: SpeedMode.NORMAL, label: '🐢 正常' },
   { value: SpeedMode.FAST, label: '🚀 快速' },
-  { value: SpeedMode.STEALTH, label: '🥷 低调' },
+  { value: SpeedMode.STEALTH, label: '🥷 低调' }
 ]
 const playbackRateOptions = [1, 1.5, 2, 3]
 
 // ===== 工具 =====
-function log (text: string): void {
+function log(text: string): void {
   const d = new Date()
   const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
   logs.push({ time: t, text })
@@ -203,7 +209,7 @@ function log (text: string): void {
 }
 
 // 从 session 中读取 startTime 并刷新时间显示
-function refreshElapsedTime (): void {
+function refreshElapsedTime(): void {
   const session = settingsStoreService.sessionGet()
   if (session.startTime > 0) {
     stats.elapsedTime = formatDuration(Date.now() - session.startTime)
@@ -212,7 +218,7 @@ function refreshElapsedTime (): void {
   }
 }
 
-function startElapsedTimer (): void {
+function startElapsedTimer(): void {
   stopElapsedTimer()
   refreshElapsedTime()
   timeTimer = window.setInterval(() => {
@@ -220,14 +226,14 @@ function startElapsedTimer (): void {
   }, 1000)
 }
 
-function stopElapsedTimer (): void {
+function stopElapsedTimer(): void {
   if (timeTimer !== null) {
     clearInterval(timeTimer)
     timeTimer = null
   }
 }
 
-function clearAllTimers (): void {
+function clearAllTimers(): void {
   if (pageTimer !== null) {
     clearTimeout(pageTimer)
     pageTimer = null
@@ -244,7 +250,7 @@ function clearAllTimers (): void {
 }
 
 // ===== 进度刷新 =====
-function refreshStats (): void {
+function refreshStats(): void {
   try {
     const items = sidebarNavigatorService.getAllItems()
     const curIndex = sidebarNavigatorService.findCurrentIndex(items)
@@ -258,7 +264,7 @@ function refreshStats (): void {
 }
 
 // ===== 点击行为 =====
-function onBtnClick (): void {
+function onBtnClick(): void {
   // 只在非拖拽的纯点击行为下切换面板
   if (!didDragMove()) {
     isOpen.value = !isOpen.value
@@ -267,7 +273,7 @@ function onBtnClick (): void {
 }
 
 // ===== 设置切换 =====
-function changeSpeedMode (mode: SpeedMode): void {
+function changeSpeedMode(mode: SpeedMode): void {
   speedMode.value = mode
   settingsStoreService.setSpeedMode(mode)
   const config = settingsStoreService.get()
@@ -283,7 +289,7 @@ function changeSpeedMode (mode: SpeedMode): void {
   }
 }
 
-function changePlaybackRate (rate: number): void {
+function changePlaybackRate(rate: number): void {
   playbackRate.value = rate
   settingsStoreService.save({ videoPlaybackRate: rate })
   log(`设置播放速率: ${rate}x`)
@@ -294,7 +300,7 @@ function changePlaybackRate (rate: number): void {
   }
 }
 
-function onToggleWakeLock (): void {
+function onToggleWakeLock(): void {
   settingsStoreService.save({ wakeLock: wakeLockOn.value })
   if (wakeLockOn.value) {
     wakeLockService.acquire(false).then(() => {
@@ -308,7 +314,7 @@ function onToggleWakeLock (): void {
   }
 }
 
-function onToggleAntiDetection (): void {
+function onToggleAntiDetection(): void {
   settingsStoreService.save({ antiDetection: antiDetectionOn.value })
   if (antiDetectionOn.value) {
     antiDetectionService.start()
@@ -319,7 +325,7 @@ function onToggleAntiDetection (): void {
   }
 }
 
-function onToggleRunning (): void {
+function onToggleRunning(): void {
   if (isRunning.value) {
     stopBrushing()
   } else {
@@ -328,7 +334,7 @@ function onToggleRunning (): void {
 }
 
 // ===== 核心刷课逻辑 =====
-function startBrushing (opts?: { resetSession?: boolean }): void {
+function startBrushing(opts?: { resetSession?: boolean }): void {
   if (isRunning.value) return
 
   const shouldReset = opts && typeof opts.resetSession === 'boolean' ? opts.resetSession : true
@@ -380,7 +386,7 @@ function startBrushing (opts?: { resetSession?: boolean }): void {
   processCurrentPage()
 }
 
-function stopBrushing (): void {
+function stopBrushing(): void {
   isRunning.value = false
   settingsStoreService.setEnabled(false)
   statusText.value = '脚本已停止'
@@ -400,12 +406,12 @@ function stopBrushing (): void {
 }
 
 /** 从 URL 中提取课程 ID */
-function getCourseIdFromUrl (): string | null {
+function getCourseIdFromUrl(): string | null {
   const match = window.location.href.match(/\/course\/view\.php\?id=(\d+)/)
   return match ? match[1] : null
 }
 
-function processCurrentPage (): void {
+function processCurrentPage(): void {
   if (!isRunning.value) return
 
   try {
@@ -548,7 +554,7 @@ function processCurrentPage (): void {
   }
 }
 
-function goToNextItem (): void {
+function goToNextItem(): void {
   if (!isRunning.value) return
 
   try {
