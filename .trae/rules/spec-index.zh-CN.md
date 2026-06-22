@@ -28,6 +28,9 @@ GLOBAL:
 
 ## 项目配置
 
+### 代码压缩配置
+- 打包配置：必须使用 Terser 压缩，配置 max_line_len: 800 并正则保护 ==UserScript== 注释，严禁产出单行超长代码。
+
 PROFILE: Web
   REQUIREMENTS: [1, 2, 3, 5, 6, 7, 10, 11, 12, 13]
   WORKFLOW: [1, 2, 6, 9, 10, 12]

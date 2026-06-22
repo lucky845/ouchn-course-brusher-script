@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs'
 
 const USERSCRIPT_HEADER = `// ==UserScript==
 // @name         国家开放大学实验学院自动刷课脚本
@@ -29,21 +29,38 @@ export default defineConfig({
   plugins: [
     vue(),
     {
-      name: 'userscript-header',
-      writeBundle() {
-        const outputPath = resolve(__dirname, 'dist/ouchn-course-brusher-vue.user.js')
+      name: 'userscript-header-and-css-injector',
+      // 使用 closeBundle 确保在所有代码压缩切行完毕后再进行合并
+      closeBundle() {
+        const distDir = resolve(__dirname, 'dist')
+        const outputPath = resolve(distDir, 'ouchn-course-brusher-vue.user.js')
+        // 根据你当前的构建产物名称，Vite 默认可能会生成 style.css
+        const cssPath = resolve(distDir, 'style.css') 
+        
         try {
-          const content = readFileSync(outputPath, 'utf-8')
-          let cleanContent = content
-            .replace(/^\(function\([^)]*\)\{/, '')
-            .replace(/\}\)\(.*?\);?$/, '')
-            .trim()
+          let cssContent = ''
           
-          const finalContent = USERSCRIPT_HEADER + '\n(function(){\n' + cleanContent + '\n})()'
+          // 1. 如果抽离出了单独的 CSS 文件，读取它并将其转化为油猴的 GM_addStyle
+          if (existsSync(cssPath)) {
+            const rawCss = readFileSync(cssPath, 'utf-8')
+            // 将内联样式代码进行安全的压缩和特殊字符转义
+            const safeCss = rawCss.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$')
+            cssContent = `\n;(function(){ if(typeof GM_addStyle !== 'undefined') { GM_addStyle(\`${safeCss}\`); } })();\n`
+            
+            // 读取完后删除掉 dist 下独立的 css 文件，保持目录干净
+            unlinkSync(cssPath)
+          }
+          
+          // 2. 读取已经压缩好的核心 JS 代码
+          const jsContent = readFileSync(outputPath, 'utf-8')
+          
+          // 3. 将【元数据】+【抽离出的 CSS 样式】+【JS主体】完美融合成一个纯净单文件
+          const finalContent = USERSCRIPT_HEADER + '\n' + cssContent + '\n' + jsContent.trim()
+          
           writeFileSync(outputPath, finalContent, 'utf-8')
-          console.log('[Build] Userscript header injected successfully')
+          console.log('[Build] Userscript header and CSS injected into single file successfully!')
         } catch (e) {
-          console.error('[Build] Error injecting header:', e)
+          console.error('[Build] Error packing single file userscript:', e)
         }
       }
     }
@@ -52,13 +69,28 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    minify: false, // 禁用压缩，保持代码格式化，避免油猴脚本解析错误
+    minify: 'terser', 
+    terserOptions: {
+      compress: {
+        drop_console: false, 
+        drop_debugger: true,
+      },
+      mangle: true, 
+      format: {
+        max_line_len: 500, // 核心：每 500 个字符强制换行
+      },
+    },
+    // 注意：这里需要改为 true，以便让 Vite 把 CSS 正常生成出来供我们插件读取注入
+    cssCodeSplit: true, 
     rollupOptions: {
       input: { main: resolve(__dirname, 'index.html') },
       output: {
         format: 'iife',
         name: 'OuchnCourseBrusher',
         entryFileNames: 'ouchn-course-brusher-vue.user.js',
+        // 强制固定生成的 CSS 文件名为 style.css 方便精准读取
+        assetFileNames: 'style.css',
+        inlineDynamicImports: true, 
       },
     },
   },
