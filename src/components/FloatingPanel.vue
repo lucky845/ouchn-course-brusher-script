@@ -718,18 +718,36 @@ onUnmounted(() => {
   width: 56px;
   height: 56px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+  border-radius: 50%;
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.float-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, transparent 50%, rgba(255, 255, 255, 0.05) 100%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  border-radius: 50%;
 }
 
 .float-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 24px rgba(102, 126, 234, 0.5);
+  transform: scale(1.1);
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.6);
+}
+
+.float-btn:hover::before {
+  opacity: 1;
 }
 
 .btn-emoji {

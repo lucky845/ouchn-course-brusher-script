@@ -32,8 +32,8 @@ export const PANEL_CONFIG_MAP: Record<PanelType, PanelConfig> = {
     dragThreshold: 5
   },
   [PanelType.COURSE]: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     margin: 30,
     dragThreshold: 5
   },
