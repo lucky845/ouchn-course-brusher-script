@@ -13,7 +13,7 @@
 - **课程详情页助手**（v2.2.0 新增）：章节导航、进度概览、书签、搜索、提醒、跨面板联动
 - **侧边栏状态显示**（v2.2.1 新增）：在刷课页面侧边栏显示活动完成状态，通过 moduleId 匹配课程完成情况
 
-**版本**：v2.2.1
+**版本**：v2.2.2
 **构建产物**：`dist/ouchn-course-brusher-vue.user.js`
 
 ## 技术栈
@@ -180,12 +180,13 @@ npx vue-tsc --noEmit
 PANEL_CONFIG_MAP: {
   floating: { width: 56, height: 56, margin: 30, dragThreshold: 5 },
   quiz: { width: 56, height: 56, margin: 30, dragThreshold: 5 },
-  course: { width: 44, height: 44, margin: 30, dragThreshold: 5 },
+  course: { width: 48, height: 48, margin: 30, dragThreshold: 5 },
   mod: { width: 56, height: 56, margin: 30, dragThreshold: 5 },
 }
 ```
 
 > **注意**：所有面板使用 margin: 30px 是为了避免被滚动条遮挡，确保悬浮窗完整显示。
+> **注意**：course 面板尺寸从 v2.2.1 的 44px 增大到 v2.2.2 的 48px，与其他面板保持视觉协调。
 
 ### [src/utils/url.ts](src/utils/url.ts)
 
@@ -300,4 +301,4 @@ URL 工具函数：
 
 ---
 
-**最后更新**：2026-06-18
+**最后更新**：2026-06-22
