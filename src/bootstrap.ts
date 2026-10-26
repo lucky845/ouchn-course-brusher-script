@@ -9,6 +9,7 @@ import CoursePanel from './components/CoursePanel.vue'
 import { writeStorageString, readStorageString, removeStorage } from './utils/storage'
 import { isStudentHomePage, isQuizPage, isCoursePage, isModPage } from './utils/url'
 import { sidebarStatusInjector } from './services/sidebarStatusInjector'
+import { settingsStoreService } from './services/settingsStore'
 
 const STORAGE_KEY = 'ouchn_brusher_panel'
 
@@ -33,10 +34,26 @@ let initializedPanel = ''
 
 function detectPanelType(): PanelTypeKey | null {
   if (isStudentHomePage()) return 'home'
-  if (isQuizPage()) return 'quiz'
+  if (isQuizPage()) {
+    // 若正处于刷课模式（已启用且存在进行中的刷课会话），保持刷课面板，
+    // 不要切换到答题面板，让 FloatingPanel 在测验页显示提示并继续刷课（跳过测验）。
+    if (isActivelyBrushing()) return 'mod'
+    return 'quiz'
+  }
   if (isCoursePage()) return 'course'
   if (isModPage()) return 'mod'
   return null
+}
+
+/** 判断是否正处于刷课进行中：已启用 且 存在进行中的刷课会话（startTime>0） */
+function isActivelyBrushing(): boolean {
+  try {
+    if (!settingsStoreService.isEnabled()) return false
+    const session = settingsStoreService.sessionGet()
+    return session.startTime > 0
+  } catch {
+    return false
+  }
 }
 
 function hasExistingPanel(): boolean {
