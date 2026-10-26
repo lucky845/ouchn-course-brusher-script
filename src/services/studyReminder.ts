@@ -492,6 +492,7 @@ export class StudyReminderService {
       type: ReminderType.DEADLINE,
       title,
       description,
+      time: '',  // DEADLINE 类型不依赖 time 触发，置空避免误匹配 daily/weekly
       deadline,
       enabled: true,
       createdAt: Date.now()

@@ -1,6 +1,5 @@
 /**
  * 面板初始化 / 启动流程
- * 将 main.ts 中的初始化流程、URL 检测、localStorage 管理等逻辑集中到此文件
  */
 import { createApp } from 'vue'
 import FloatingPanel from './components/FloatingPanel.vue'
@@ -23,38 +22,15 @@ interface PanelConfig {
 }
 
 const PANEL_CONFIGS: Record<PanelTypeKey, PanelConfig> = {
-  home: {
-    id: 'home-brushing-panel',
-    type: 'home',
-    label: '学生首页',
-    component: HomePanel
-  },
-  quiz: {
-    id: 'quiz-brushing-panel',
-    type: 'quiz',
-    label: '答题页面',
-    component: QuizPanel
-  },
-  course: {
-    id: 'course-brushing-panel',
-    type: 'course',
-    label: '课程页面',
-    component: CoursePanel
-  },
-  mod: {
-    id: 'mod-brushing-panel',
-    type: 'mod',
-    label: '刷课页面',
-    component: FloatingPanel
-  }
+  home: { id: 'home-brushing-panel', type: 'home', label: '学生首页', component: HomePanel },
+  quiz: { id: 'quiz-brushing-panel', type: 'quiz', label: '答题页面', component: QuizPanel },
+  course: { id: 'course-brushing-panel', type: 'course', label: '课程页面', component: CoursePanel },
+  mod: { id: 'mod-brushing-panel', type: 'mod', label: '刷课页面', component: FloatingPanel }
 }
 
 let isInitializing = false
 let initializedPanel = ''
 
-/**
- * 检测当前应加载的面板类型
- */
 function detectPanelType(): PanelTypeKey | null {
   if (isStudentHomePage()) return 'home'
   if (isQuizPage()) return 'quiz'
@@ -63,24 +39,6 @@ function detectPanelType(): PanelTypeKey | null {
   return null
 }
 
-/**
- * 挂载指定类型的 Vue 面板
- */
-function mountPanel(panelType: PanelTypeKey): void {
-  const config = PANEL_CONFIGS[panelType]
-  const container = document.createElement('div')
-  container.id = config.id
-  container.setAttribute('data-panel-type', config.type)
-  container.style.cssText = 'position:fixed;z-index:999999;pointer-events:auto;'
-  document.body.appendChild(container)
-  createApp(config.component).mount(container)
-  initializedPanel = panelType
-  writeStorageString(STORAGE_KEY, panelType)
-}
-
-/**
- * 检查当前页面上是否已经存在任何面板容器
- */
 function hasExistingPanel(): boolean {
   return !!document.getElementById('home-brushing-panel') ||
          !!document.getElementById('quiz-brushing-panel') ||
@@ -88,49 +46,82 @@ function hasExistingPanel(): boolean {
          !!document.getElementById('mod-brushing-panel')
 }
 
-/**
- * 尝试初始化：检测页面类型 → 挂载对应面板
- */
-function init(): void {
-  if (isInitializing) {
-    console.log('[刷课脚本] 正在初始化中，跳过')
-    return
-  }
+function mountPanel(panelType: PanelTypeKey): void {
+  const config = PANEL_CONFIGS[panelType]
+  // 使用 Shadow DOM 容器，避免平台清理
+  const host = document.createElement('div')
+  host.id = config.id
+  host.style.cssText = 'position:fixed!important;z-index:2147483647!important;pointer-events:auto!important;top:0;left:0;'
+  const shadow = host.attachShadow({ mode: 'open' })
+  const container = document.createElement('div')
+  container.id = 'panel-root'
+  shadow.appendChild(container)
+  // 挂载到 document.documentElement 而非 body，避免平台清理 body 子节点
+  document.documentElement.appendChild(host)
 
+  // 关键：GM_addStyle 注入的全局 CSS 进不了 Shadow DOM，需手动复制到 shadow root
   try {
-    if (typeof document === 'undefined') return
-
-    if (!document.body) {
-      console.log('[刷课脚本] body 不存在，延迟重试')
-      setTimeout(init, 300)
-      return
+    const copyStylesIntoShadow = (): void => {
+      const shadowStyle = document.createElement('style')
+      shadowStyle.id = 'ouchn-shadow-styles'
+      let css = ''
+      // 首选构建时内联的全局 CSS，最可靠（不依赖 head 中可能被平台清理的 style）
+      try {
+        const inline = (window as any).__OCHN_CSS__
+        if (typeof inline === 'string' && inline.length > 0) {
+          css += inline + '\n'
+        }
+      } catch {}
+      // 兜底：复制 head 里所有 style 标签内容
+      if (!css) {
+        document.querySelectorAll('style').forEach((s) => {
+          const text = s.textContent || ''
+          if (text && text.length > 0) css += text + '\n'
+        })
+      }
+      if (css) {
+        shadowStyle.textContent = css
+        // 移除旧节点避免重复
+        const old = shadow.getElementById('ouchn-shadow-styles')
+        if (old) old.remove()
+        shadow.insertBefore(shadowStyle, container)
+      }
     }
+    copyStylesIntoShadow()
+    window.setTimeout(copyStylesIntoShadow, 200)
+    window.setTimeout(copyStylesIntoShadow, 800)
+    window.setTimeout(copyStylesIntoShadow, 1500)
+  } catch {}
+  try {
+    createApp(config.component).mount(container)
+  } catch (e) {
+    console.error('[刷课脚本] Vue 挂载失败:', e)
+    host.textContent = '刷课脚本挂载失败: ' + (e as Error).message
+  }
+  initializedPanel = panelType
+  writeStorageString(STORAGE_KEY, panelType)
+  // 诊断标记
+  const marker = document.createElement('div')
+  marker.textContent = '✓ ' + config.label
+  marker.style.cssText = 'position:fixed;bottom:10px;right:10px;z-index:2147483647;background:#6c5ce7;color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;'
+  document.documentElement.appendChild(marker)
+}
 
+function init(): void {
+  if (isInitializing) return
+  try {
+    if (!document.documentElement) return
     const panelType = detectPanelType()
-    console.log('[刷课脚本] 面板类型:', panelType)
-
-    if (hasExistingPanel()) {
-      console.log('[刷课脚本] 已有面板存在，跳过')
-      return
-    }
-
-    if (!panelType) {
-      console.log('[刷课脚本] 不匹配任何页面类型，不加载面板')
-      isInitializing = false
-      return
-    }
+    if (!panelType) return
+    if (hasExistingPanel()) return
 
     isInitializing = true
     mountPanel(panelType)
-    // 初始化侧边栏课程状态注入服务
-    sidebarStatusInjector.init()
-    console.log('[刷课脚本] ✓ 初始化完成')
+    try { sidebarStatusInjector.init() } catch {}
     isInitializing = false
 
     setTimeout(() => {
-      const panel = document.getElementById(PANEL_CONFIGS[panelType].id)
-      if (!panel) {
-        console.log('[刷课脚本] 面板不存在，尝试重新初始化')
+      if (!hasExistingPanel()) {
         isInitializing = false
         initializedPanel = ''
         removeStorage(STORAGE_KEY)
@@ -142,28 +133,22 @@ function init(): void {
   }
 }
 
-/**
- * 调度初始化：在多个时间点 / 事件下尝试启动
- */
 export function scheduleInit(): void {
-  console.log('[刷课脚本] 调度初始化')
+  const ensurePanel = (): void => {
+    const pt = detectPanelType()
+    if (!pt) return
+    if (hasExistingPanel()) return
+    initializedPanel = ''
+    isInitializing = false
+    init()
+  }
 
   const runInit = (): void => {
-    if (initializedPanel) {
-      console.log('[刷课脚本] 已初始化过:', initializedPanel)
-      return
-    }
+    if (initializedPanel && hasExistingPanel()) return
     init()
   }
 
   const checkAndInit = (): void => {
-    if (initializedPanel) return
-
-    const saved = readStorageString(STORAGE_KEY)
-    if (saved) {
-      console.log('[刷课脚本] 检测到保存的面板类型:', saved)
-    }
-
     runInit()
   }
 
@@ -178,4 +163,21 @@ export function scheduleInit(): void {
   window.addEventListener('load', () => {
     setTimeout(checkAndInit, 300)
   })
+
+  window.addEventListener('hashchange', () => setTimeout(ensurePanel, 300))
+  window.addEventListener('popstate', () => setTimeout(ensurePanel, 300))
+
+  const observer = new MutationObserver(() => {
+    ensurePanel()
+  })
+  const attachObserver = (): void => {
+    if (document.documentElement) {
+      observer.observe(document.documentElement, { childList: true, subtree: true })
+    }
+  }
+  if (document.documentElement) attachObserver()
+  else document.addEventListener('DOMContentLoaded', attachObserver)
+
+  // 兜底轮询
+  window.setInterval(ensurePanel, 1000)
 }

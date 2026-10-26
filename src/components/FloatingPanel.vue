@@ -149,6 +149,7 @@ import { sidebarNavigatorService } from '../services/sidebarNavigator'
 import { courseProgressStore } from '../services/courseProgressStore'
 import { useDraggablePanel } from '../composables/useDraggablePanel'
 import { getPanelConfig } from '../utils/panel'
+import { getModuleIdFromUrl } from '../utils/url'
 import { formatDuration } from '../utils/time'
 
 // ===== 面板尺寸（由 utils/panel 统一配置） =====
@@ -424,7 +425,8 @@ function processCurrentPage(): void {
     if (curIndex >= 0 && items[curIndex]) {
       const currentItem = items[curIndex]
       const currentItemName = currentItem.textContent?.trim() || '(未命名)'
-      courseProgressStore.updateCurrentActivity(curIndex, currentItemName, currentItem.href)
+      const curItemId = getModuleIdFromUrl(currentItem.href) || currentItem.href
+      courseProgressStore.updateCurrentActivity(curItemId, currentItemName, currentItem.href)
     }
 
     // 课程主页 / 目录页
@@ -606,11 +608,13 @@ function goToNextItem(): void {
     if (curIndex >= 0) {
       const nextItem = items[curIndex + 1]
       if (nextItem) {
-        // 更新课程进度：标记当前活动完成，准备下一活动
-        courseProgressStore.markActivityCompleted(curIndex)
+        // 更新课程进度：标记当前活动完成，准备下一活动（key 统一用 moduleId）
+        const curItemId = getModuleIdFromUrl(items[curIndex].href) || items[curIndex].href
+        courseProgressStore.markActivityCompleted(curItemId)
         const nextItemName = nextItem.textContent?.trim() || '(未命名)'
         const nextItemUrl = nextItem.href
-        courseProgressStore.updateCurrentActivity(curIndex + 1, nextItemName, nextItemUrl)
+        const nextItemId = getModuleIdFromUrl(nextItemUrl) || nextItemUrl
+        courseProgressStore.updateCurrentActivity(nextItemId, nextItemName, nextItemUrl)
 
         log(`→ 跳转到第 ${curIndex + 2} 项: ${nextItemName.substring(0, 30)}`)
         currentAction.value = '页面跳转中...'

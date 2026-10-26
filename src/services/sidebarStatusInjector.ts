@@ -102,7 +102,7 @@ export class SidebarStatusInjector {
       return 0
     }
 
-    if (this.injectedTargets.has(link)) return
+    if (this.injectedTargets.has(link)) return 0
 
     let badge: HTMLElement
     if (progress) {

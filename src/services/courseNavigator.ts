@@ -218,7 +218,7 @@ export class CourseNavigatorService {
       status,
       type,
       moduleId,
-      linkUrl: href,
+      url: href,
       element: el
     }
   }
