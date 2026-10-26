@@ -149,8 +149,9 @@ import { sidebarNavigatorService } from '../services/sidebarNavigator'
 import { courseProgressStore } from '../services/courseProgressStore'
 import { useDraggablePanel } from '../composables/useDraggablePanel'
 import { getPanelConfig } from '../utils/panel'
-import { getModuleIdFromUrl } from '../utils/url'
+import { getModuleIdFromUrl, isQuizPage } from '../utils/url'
 import { formatDuration } from '../utils/time'
+import { showUserNotice } from '../utils/userNotice'
 
 // ===== 面板尺寸（由 utils/panel 统一配置） =====
 const { width: BTN_WIDTH, height: BTN_HEIGHT, margin: MARGIN, dragThreshold: DRAG_THRESHOLD } = getPanelConfig(PanelType.FLOATING)
@@ -418,6 +419,24 @@ function processCurrentPage(): void {
   try {
     const url = window.location.href
     log(`处理页面: ${url.substring(0, 60)}...`)
+
+    // 测验/答题页：刷课模式下跳过（提示后自动进入下一项）
+    if (isQuizPage()) {
+      currentAction.value = '检测到测验，将跳过'
+      const skipWaitMs = 4500
+      log(`→ 检测到测验/答题页，刷课模式下 ${skipWaitMs}ms 后自动跳过`)
+      showUserNotice(
+        '检测到刷课模式正在运行，如需正常做题请先停止刷课。当前测验将自动跳过，继续下一个项目。',
+        { type: 'warn', duration: skipWaitMs }
+      )
+      pageTimer = window.setTimeout(() => {
+        if (isRunning.value) {
+          log('→ 测验跳过，跳转到下一个项目')
+          goToNextItem()
+        }
+      }, skipWaitMs)
+      return
+    }
 
     // 获取当前活动信息并更新进度
     const items = sidebarNavigatorService.getAllItems()
