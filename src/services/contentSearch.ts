@@ -219,7 +219,7 @@ export class ContentSearchService {
 
     // 找到包含匹配文本的元素
     const target = element.querySelector('.instancename, .section-title, .sectionname, .activityname, a')
-    const textEl = target || element
+    const textEl: HTMLElement = (target || element) as HTMLElement
 
     // 包裹匹配文本
     const text = textEl.textContent || ''

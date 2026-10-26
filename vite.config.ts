@@ -8,7 +8,7 @@ const USERSCRIPT_HEADER = `// ==UserScript==
 // @namespace    https://github.com/lucky845
 // @homepageURL   https://github.com/lucky845/ouchn-course-brusher-script
 // @source        https://github.com/lucky845/ouchn-course-brusher-script
-// @version       2.2.2
+// @version       2.2.3
 // @description  国家开放大学实验学院自动刷课脚本 - Vue3 版本，支持题目提取、学生首页助手和课程详情页助手(github 仓库: https://github.com/lucky845/ouchn-course-brusher-script)
 // @author       lucky845
 // @match        https://moodle.syxy.ouchn.cn/mod/*
@@ -19,7 +19,7 @@ const USERSCRIPT_HEADER = `// ==UserScript==
 // @grant        GM_getValue
 // @grant        GM_setClipboard
 // @grant        GM_addStyle
-// @run-at       document-idle
+// @run-at       document-start
 // @noframes
 // ==/UserScript==
 
@@ -45,7 +45,9 @@ export default defineConfig({
             const rawCss = readFileSync(cssPath, 'utf-8')
             // 将内联样式代码进行安全的压缩和特殊字符转义
             const safeCss = rawCss.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$')
-            cssContent = `\n;(function(){ if(typeof GM_addStyle !== 'undefined') { GM_addStyle(\`${safeCss}\`); } })();\n`
+            // 同时把 CSS 存为全局变量，供 Shadow DOM 内部样式注入使用（不依赖 head 中可能被平台清理的 style）
+            const globalCssJs = `\n;(function(){ if(typeof window!=='undefined'){ try{ window.__OCHN_CSS__ = ${JSON.stringify(rawCss)}; }catch(e){} } })();\n`
+            cssContent = globalCssJs + `\n;(function(){ if(typeof GM_addStyle !== 'undefined') { GM_addStyle(\`${safeCss}\`); } })();\n`
             
             // 读取完后删除掉 dist 下独立的 css 文件，保持目录干净
             unlinkSync(cssPath)

@@ -51,6 +51,21 @@ export function getBasePath(href: string): string {
 }
 
 /**
+ * 从活动链接 URL 中提取 moduleId
+ * 用于与课程进度 store 的 completedActivities key（moduleId）保持一致
+ * @param href 完整 URL（如 https://example.com/mod/quiz/view.php?id=1764）
+ * @returns moduleId（如 "1764"），无法解析时返回空字符串
+ */
+export function getModuleIdFromUrl(href: string): string {
+  if (!href) return ''
+  const params = parseQueryParams(href)
+  if (params.id) return params.id.trim()
+  // 兜底：直接从 /mod/xxx/view.php?id=(\d+) 正则提取
+  const m = href.match(/\/mod\/[^/]+\/view\.php\?id=(\d+)/)
+  return m ? m[1] : ''
+}
+
+/**
  * 判断当前页面是否为学习内容页（包含 /mod/ 路径）
  */
 export function isActivityPage(): boolean {

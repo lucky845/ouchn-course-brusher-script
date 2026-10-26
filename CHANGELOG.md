@@ -2,6 +2,23 @@
 
 所有版本更新记录，按发布时间倒序排列。
 
+## v2.2.3 (2026-10-26)
+
+**平台样式拦截与稳定性修复**
+
+- 🛡️ **反调试绕过**：平台拦截 DevTools 导致悬浮窗不显示，新增反调试绕过（`antiDebugBypass`），在脚本最早期拦截 F12/右键/调试器断点并伪装窗口尺寸
+- 🚀 **提前注入时机**：`@run-at` 改为 `document-start`，在页面最早阶段注入脚本，避免被平台后续重渲染清理
+- 🔄 **悬浮窗自动重建**：新增 SPA 路由监听（hashchange/popstate）、DOM 变化观察与 1 秒轮询，面板被平台清理后自动重新挂载
+- 🔒 **Shadow DOM 隔离**：面板改挂载到 Shadow DOM 并挂到 `documentElement`，避免平台直接操作/清理面板节点
+- 🎨 **样式内联修复**：CSS 内联为全局变量并注入 Shadow DOM，解决平台拦截 GM_addStyle 注入样式导致悬浮窗样式异常的问题
+
+**类型错误修复**
+
+- 🐛 **修复活动进度类型错误**：`markActivityCompleted` / `updateCurrentActivity` 改为使用 moduleId 作为 key，与侧边栏完成状态保持一致（此前使用索引导致完成状态无法匹配）
+- 🐛 **新增 URL 工具**：`getModuleIdFromUrl` 统一从活动链接提取 moduleId
+- 🐛 **修复其他类型错误**：`contentSearch` 类型断言、`courseNavigator` 字段名 `linkUrl`→`url`、`sidebarStatusInjector` 空返回、`studyReminder` 补 `time` 字段
+- ✨ 项目通过完整 `vue-tsc` 类型检查
+
 ## v2.2.2 (2026-06-22)
 
 **悬浮窗样式统一与优化**
