@@ -9,9 +9,18 @@ export class HomeNavigatorService {
     this.seenNames.clear()
 
     try {
-      // 根据实际 DOM 结构：学期使用 .card，课程使用 .card-body
-      const semesterCards = document.querySelectorAll('.card')
+      // 实际 DOM 结构（实验学院学生首页）：
+      // .courseList > .semester-block（每个学期），内部 .course-list-wrap > .cc-item（每门课程）
+      const semesterBlocks = document.querySelectorAll('.semester-block')
+      if (semesterBlocks.length > 0) {
+        semesterBlocks.forEach((block) => {
+          this.extractFromSemesterBlock(block as HTMLElement)
+        })
+        return this.semesters
+      }
 
+      // 兼容旧版 .card 结构
+      const semesterCards = document.querySelectorAll('.card')
       if (semesterCards.length > 0) {
         semesterCards.forEach((card) => {
           this.extractFromCard(card as HTMLElement)
@@ -26,6 +35,34 @@ export class HomeNavigatorService {
     }
 
     return this.semesters
+  }
+
+  private extractFromSemesterBlock(block: HTMLElement): void {
+    // 查找学期名称（semester-name 直接就是"本学期课程"、"2026春"等）
+    const nameEl = block.querySelector(':scope .semester-name')
+    const headerText = (nameEl?.textContent || '').trim()
+
+    // 判断是否为当前学期（只检查标题开头，避免误匹配）
+    const isCurrent = headerText.startsWith('本学期') || headerText.startsWith('当前学期')
+
+    let semesterName = headerText || (isCurrent ? '本学期课程' : '其他学期')
+
+    // 查找该学期块内的课程项（严格限定在当前学期块内，避免跨学期混入）
+    const courseListWrap = block.querySelector(':scope > .course-list-wrap')
+    const courseItems = courseListWrap ? courseListWrap.querySelectorAll(':scope > .cc-item') : []
+    const courses: CourseInfo[] = []
+
+    courseItems.forEach((item) => {
+      const course = this.extractCourseFromItem(item as HTMLElement)
+      if (course && course.name && !this.seenNames.has(course.name)) {
+        this.seenNames.add(course.name)
+        courses.push(course)
+      }
+    })
+
+    if (courses.length > 0) {
+      this.semesters.push({ name: semesterName, isCurrent, courses })
+    }
   }
 
   private extractFromCard(card: HTMLElement): void {
@@ -69,6 +106,79 @@ export class HomeNavigatorService {
       })
     }
   }
+
+  private extractCourseFromItem(item: HTMLElement): CourseInfo | null {
+    const course: CourseInfo = {
+      name: '',
+      progress: 0,
+      isCompleted: false,
+      pendingTasks: 0,
+      credits: 0,
+      score: 0,
+      examType: '',
+      hasHomework: false
+    }
+
+    const text = item.textContent || ''
+
+    // 课程名称
+    const titleEl = item.querySelector(':scope .cc-title h3')
+    if (titleEl) {
+      course.name = titleEl.textContent?.trim() || ''
+    }
+    if (!course.name) return null
+
+    // 封面
+    const imgEl = item.querySelector(':scope img.cc-cover') as HTMLImageElement
+    if (imgEl && imgEl.src && !imgEl.src.includes('placeholder')) {
+      course.coverUrl = imgEl.src
+    }
+
+    // 学分、形考总成绩
+    const creditsMatch = text.match(/学分[：:]\s*(\d+)/)
+    if (creditsMatch) course.credits = parseInt(creditsMatch[1])
+    const scoreMatch = text.match(/形考总成绩[：:]\s*(\d+)/)
+    if (scoreMatch) course.score = parseInt(scoreMatch[1])
+
+    // 进度：优先读取 .cc-progress-bar-fill 的 width%，其次 "已学 X%"
+    const progressBar = item.querySelector(':scope .cc-progress-bar-fill[style*="width"]')
+    if (progressBar) {
+      const style = progressBar.getAttribute('style') || ''
+      const widthMatch = style.match(/width:\s*(\d+(?:\.\d+)?)%/)
+      if (widthMatch) course.progress = Math.round(parseFloat(widthMatch[1]))
+    }
+    if (!course.progress) {
+      const progressMatch = text.match(/已学\s*(\d+)\s*%/)
+      if (progressMatch) course.progress = parseInt(progressMatch[1])
+    }
+
+    course.isCompleted = course.progress >= 100
+
+    // 待完成任务：从 .cc-job-tag 的文本提取
+    const pendingMatch = text.match(/有\s*([1-9]\d?)\s*个(?:作业(?:和测验)?|测验)\s*(?:待|未)完成/)
+    if (pendingMatch) {
+      const pendingCount = parseInt(pendingMatch[1])
+      if (pendingCount > 0 && pendingCount <= 10) {
+        course.pendingTasks = pendingCount
+        course.hasHomework = true
+      }
+    }
+
+    // 去学习按钮（用于跳转）
+    const buttons = item.querySelectorAll(':scope button, :scope .cc-actions button')
+    buttons.forEach((btn) => {
+      const btnText = btn.textContent?.trim() || ''
+      if (btnText.includes('去学习')) {
+        course.studyButton = btn as HTMLButtonElement
+      } else if (btnText.includes('查看课程')) {
+        course.viewButton = btn as HTMLButtonElement
+      }
+    })
+
+    return course
+  }
+
+
 
   private extractCourseFromBody(body: HTMLElement): CourseInfo | null {
     const course: CourseInfo = {
@@ -183,50 +293,80 @@ export class HomeNavigatorService {
     return course
   }
 
+
   private extractByTextMatching(): void {
-    const allDivs = document.querySelectorAll('div')
-    let currentSemesterSection: HTMLElement | null = null
-    const otherSemesters: Array<{ name: string, section: HTMLElement }> = []
+    // 优先基于 Element UI 的 el-collapse-item 逐个学期区块提取，
+    // 再以标题文本确定学期归属与 isCurrent，避免"大容器全包"导致
+    // 其它学期课程混入本学期或被整段漏提。
+    const semesterSections: Array<{ name: string, isCurrent: boolean, courses: CourseInfo[] }> = []
+    const collapseItems = document.querySelectorAll('[class*="el-collapse-item"]')
 
-    for (const div of allDivs) {
-      const text = div.textContent || ''
+    if (collapseItems.length > 0) {
+      collapseItems.forEach((item) => {
+        const el = item as HTMLElement
+        const header = el.querySelector('[class*="el-collapse-item__header"], [class*="collapse-title"], h2, h3, h4, h5')
+        const headerText = (header?.textContent || '').trim()
 
-      if (text.startsWith('本学期课程') || text.includes('本学期我的课程有')) {
-        if (!currentSemesterSection) {
-          currentSemesterSection = div.closest('[class*="el-collapse-item"]') as HTMLElement || div
+        const currentFlag = headerText.includes('本学期') || headerText.includes('当前学期')
+        // 提取学期名称：去掉"本学期/当前学期/（本）/括号及日期"等修饰
+        let name = headerText
+          .replace(/本学期|当前学期/g, '')
+          .replace(/[（(][^）)]*本学期[^）)]*[）)]/g, '')
+          .replace(/[（(]本[）)]/g, '')
+          .replace(/（.*$/, '')
+          .replace(/\(.*\)/, '')
+          .trim()
+        if (!name) {
+          name = currentFlag ? '本学期课程' : '其他学期'
         }
-      }
 
-      const semesterMatch = text.match(/^(20\d{2}(?:春|秋|夏|冬|上|下))\s*[\(（]?本学期/)
-      if (semesterMatch) {
-        const section = div.closest('[class*="el-collapse-item"]') as HTMLElement
-        if (section && section !== currentSemesterSection) {
-          otherSemesters.push({
-            name: semesterMatch[1] + (text.includes('（本）') ? '（本）' : ''),
-            section
-          })
+        const courses = this.extractCoursesFromSection(el)
+        if (courses.length > 0) {
+          semesterSections.push({ name, isCurrent: currentFlag, courses })
         }
-      }
-    }
-
-    if (currentSemesterSection) {
-      const courses = this.extractCoursesFromSection(currentSemesterSection)
-      this.semesters.push({
-        name: '本学期课程',
-        isCurrent: true,
-        courses
       })
+    } else {
+      // 兼容非 collapse 结构：扫描带学期语义的容器
+      const allDivs = document.querySelectorAll('div')
+      const seen = new Set<HTMLElement>()
+      for (const div of allDivs) {
+        const text = (div.textContent || '').trim()
+        if (!text.startsWith('本学期课程') && !text.startsWith('当前学期') && !text.includes('本学期我的课程有')) continue
+
+        const header = div.querySelector('[class*="title"], h2, h3, h4, h5')
+        const headerText = (header?.textContent || '').trim()
+        const isCurrent = headerText.startsWith('本学期') || headerText.startsWith('当前学期')
+        // 尝试收缩到最近的课程列表容器，避免包裹全部学期的大容器
+        let container = div.closest('[class*="course-list"], [class*="courseList"], [class*="card-body"], [class*="residue-card"]')
+        if (!container || container === div) {
+          container = div
+        }
+        if (seen.has(container as HTMLElement)) continue
+        seen.add(container as HTMLElement)
+
+        const courses = this.extractCoursesFromSection(container as HTMLElement)
+        if (courses.length > 0) {
+          semesterSections.push({ name: isCurrent ? '本学期课程' : '其他学期', isCurrent, courses })
+        }
+      }
     }
 
-    for (const sem of otherSemesters) {
-      const courses = this.extractCoursesFromSection(sem.section)
-      if (courses.length > 0) {
-        this.semesters.push({
-          name: sem.name,
-          isCurrent: false,
-          courses
-        })
+    // 确保本学期排在最前，其它学期按顺序追加
+    semesterSections.sort((a, b) => Number(b.isCurrent) - Number(a.isCurrent))
+
+    // 写入 semesters，并保证"本学期"唯一（若有多个 false 正识别的 current，只保留第一个）
+    let currentAssigned = false
+    for (const sem of semesterSections) {
+      if (sem.isCurrent && currentAssigned) {
+        sem.isCurrent = false
+      } else if (sem.isCurrent) {
+        currentAssigned = true
       }
+      this.semesters.push({
+        name: sem.name,
+        isCurrent: sem.isCurrent,
+        courses: sem.courses
+      })
     }
   }
 
@@ -238,6 +378,8 @@ export class HomeNavigatorService {
 
     courseContainers.forEach((el) => {
       if (el.querySelectorAll('div').length < 2) return
+      // 跳过嵌套的其它学期区块，避免跨学期提取课程
+      if (el.querySelector('[class*="el-collapse-item"]')) return
 
       const course = this.extractSingleCourse(el)
       if (course && course.name && !seen.has(course.name) && !this.seenNames.has(course.name)) {

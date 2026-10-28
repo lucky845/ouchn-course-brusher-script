@@ -207,6 +207,15 @@ function refreshCourses(): void {
   // 数据质量达标或已达到最大重试次数，更新状态
   semesters.value = result
 
+  // 诊断：打印提取结果，便于定位"本学期课程统计错误"问题
+  console.log('[HomePanel] 学期提取结果：', result.map(s => ({
+    学期: s.name,
+    isCurrent: s.isCurrent,
+    课程数: s.courses.length,
+    待办: s.courses.reduce((sum, c) => sum + c.pendingTasks, 0),
+    已学完: s.courses.filter(c => c.isCompleted).length
+  })))
+
   // 默认只展开本学期课程
   result.forEach((s) => {
     if (s.isCurrent) {
