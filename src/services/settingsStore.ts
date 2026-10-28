@@ -8,13 +8,9 @@ import {
   readStorageRecord,
   removeStorage
 } from '../utils/storage'
+import { SETTINGS_KEY, ENABLED_KEY, SESSION_KEY, PANEL_POSITIONS_KEY } from './storageKeys'
 
 export { SpeedMode }
-
-const STORAGE_KEY = 'ouchn_brusher_settings_v2'
-const ENABLED_KEY = 'ouchn_brusher_enabled'
-const SESSION_KEY = 'ouchn_brusher_session' // 本次刷课：startTime + itemsDone
-const PANEL_POSITIONS_KEY = 'ouchn_panel_positions' // 所有面板位置
 
 const DEFAULT_SETTINGS: Settings = {
   videoCheckInterval: 10000,
@@ -65,13 +61,13 @@ export class SettingsStoreService {
   }
 
   load(): Settings {
-    const parsed = readStorage<Partial<Settings>>(STORAGE_KEY, {}, isValidSettings)
+    const parsed = readStorage<Partial<Settings>>(SETTINGS_KEY, {}, isValidSettings)
     return { ...DEFAULT_SETTINGS, ...parsed }
   }
 
   save(newSettings: Partial<Settings>): void {
     this.settings = { ...this.settings, ...newSettings }
-    writeStorage(STORAGE_KEY, this.settings)
+    writeStorage(SETTINGS_KEY, this.settings)
     this.listeners.forEach((listener) => {
       try {
         listener({ ...this.settings })

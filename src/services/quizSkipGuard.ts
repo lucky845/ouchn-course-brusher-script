@@ -9,8 +9,7 @@
  * - 跨页面跳转保持有效（localStorage 而非组件内存）
  */
 import { readStorageOptional, writeStorage } from '../utils/storage'
-
-const KEY = 'ouchn_quiz_skip_guard'
+import { QUIZ_SKIP_GUARD_KEY } from './storageKeys'
 
 /** 判定死循环的参数（集中配置，便于调整） */
 export const QUIZ_SKIP_GUARD = {
@@ -32,7 +31,7 @@ interface QuizSkipRecord {
 function load(): Record<string, QuizSkipRecord> {
   const isRecord = (v: unknown): v is Record<string, QuizSkipRecord> =>
     v !== null && typeof v === 'object' && !Array.isArray(v)
-  const data = readStorageOptional<Record<string, QuizSkipRecord>>(KEY, isRecord)
+  const data = readStorageOptional<Record<string, QuizSkipRecord>>(QUIZ_SKIP_GUARD_KEY, isRecord)
   return data ?? {}
 }
 
@@ -62,12 +61,12 @@ export function recordQuizSkip(moduleId: string): boolean {
     }
   })
   snapshot[id] = records[id]
-  writeStorage(KEY, snapshot)
+  writeStorage(QUIZ_SKIP_GUARD_KEY, snapshot)
 
   return skipsInWindow >= QUIZ_SKIP_GUARD.maxSkipsInWindow
 }
 
 /** 清空守卫记录（刷课正常开始/重新开始时调用） */
 export function resetQuizSkipGuard(): void {
-  writeStorage(KEY, {})
+  writeStorage(QUIZ_SKIP_GUARD_KEY, {})
 }
