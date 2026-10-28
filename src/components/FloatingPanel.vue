@@ -195,6 +195,12 @@ let refreshTimer: number | null = null
 let videoCheckTimer: number | null = null
 let timeTimer: number | null = null // 刷新"本次刷课时间"显示
 
+// ===== 视频卡住兜底 =====
+// 记录最近一次检测到视频"正在播放"的时间；超过 idleTimeoutMs 无播放进展则强制跳转，
+// 避免平台锁死 play() 导致脚本永远卡在视频页。
+let videoProgressAt = 0
+const VIDEO_IDLE_TIMEOUT_MS = 90 * 1000 // 视频卡住 90 秒视为异常
+
 // ===== 选项 =====
 const speedModeOptions = [
   { value: SpeedMode.NORMAL, label: '🐢 正常' },
@@ -507,6 +513,8 @@ function processCurrentPage(): void {
     if (video) {
       log(`→ 检测到视频，准备播放 (duration=${Math.round(video.duration || 0)}s)`)
       currentAction.value = '播放视频'
+      // 重置视频卡住跟踪：记录本次页面开始检测视频的时间
+      videoProgressAt = Date.now()
 
       if (speedMode.value === SpeedMode.FAST) {
         videoManagerService.setPlaybackRate(playbackRate.value)
@@ -556,7 +564,23 @@ function processCurrentPage(): void {
             stats.itemsDone = settingsStoreService.sessionIncrementItems()
             goToNextItem()
           } else if (v.paused) {
+            // 卡住兜底：若长时间没有播放进展，判定视频被平台锁死，强制跳转
+            const idleMs = Date.now() - videoProgressAt
+            if (idleMs > VIDEO_IDLE_TIMEOUT_MS) {
+              log(`→ 视频卡住超过 ${Math.round(VIDEO_IDLE_TIMEOUT_MS / 1000)}s，强制跳转`)
+              currentAction.value = '视频异常，自动跳过'
+              showUserNotice(
+                '检测到视频长时间无法播放，已自动跳过，继续下一个项目。',
+                { type: 'warn', duration: 4000 }
+              )
+              stats.itemsDone = settingsStoreService.sessionIncrementItems()
+              goToNextItem()
+              return
+            }
             v.play().catch(() => {})
+          } else {
+            // 视频正在播放，刷新"有进展"时间
+            videoProgressAt = Date.now()
           }
         }
       }, 3000)
