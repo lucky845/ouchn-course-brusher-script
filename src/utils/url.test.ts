@@ -4,7 +4,7 @@ import { parseQueryParams, getModuleIdFromUrl, isQuizPage, getCourseId } from '.
 // happy-dom 提供的 window.happyDOM.setURL 扩展，仅测试文件使用
 declare global {
   interface Window {
-    happyDOM?: { setURL?: (url: string) => void }
+    happyDOM?: { setURL?: (url: string)=> void }
   }
 }
 
