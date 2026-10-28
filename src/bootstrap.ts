@@ -6,12 +6,11 @@ import FloatingPanel from './components/FloatingPanel.vue'
 import QuizPanel from './components/QuizPanel.vue'
 import HomePanel from './components/HomePanel.vue'
 import CoursePanel from './components/CoursePanel.vue'
-import { writeStorageString, readStorageString, removeStorage } from './utils/storage'
+import { writeStorageString, removeStorage } from './utils/storage'
 import { isStudentHomePage, isQuizPage, isCoursePage, isModPage } from './utils/url'
 import { sidebarStatusInjector } from './services/sidebarStatusInjector'
 import { settingsStoreService } from './services/settingsStore'
-
-const STORAGE_KEY = 'ouchn_brusher_panel'
+import { PANEL_TYPE_KEY } from './services/storageKeys'
 
 type PanelTypeKey = 'home' | 'quiz' | 'course' | 'mod'
 
@@ -116,7 +115,7 @@ function mountPanel(panelType: PanelTypeKey): void {
     host.textContent = '刷课脚本挂载失败: ' + (e as Error).message
   }
   initializedPanel = panelType
-  writeStorageString(STORAGE_KEY, panelType)
+  writeStorageString(PANEL_TYPE_KEY, panelType)
   // 诊断标记
   const marker = document.createElement('div')
   marker.textContent = '✓ ' + config.label
@@ -141,7 +140,7 @@ function init(): void {
       if (!hasExistingPanel()) {
         isInitializing = false
         initializedPanel = ''
-        removeStorage(STORAGE_KEY)
+        removeStorage(PANEL_TYPE_KEY)
       }
     }, 1000)
   } catch (e) {

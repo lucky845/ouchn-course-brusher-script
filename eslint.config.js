@@ -185,10 +185,7 @@ export default tseslint.config(
       ],
       'vue/prop-name-casing': ['error', 'camelCase'],
       'vue/component-definition-name-casing': ['error', 'PascalCase'],
-      'vue/component-tags-order': [
-        'error',
-        { order: ['template', 'script', 'style'] },
-      ],
+      // 注：eslint-plugin-vue@10 移除了 component-tags-order，改用下方 block-order 规则
       'vue/html-self-closing': [
         'error',
         {

@@ -78,6 +78,13 @@
         <!-- 开关 -->
         <div class="section-card">
           <div class="toggle-row">
+            <span>🔇 静音刷课</span>
+            <label class="switch">
+              <input v-model="mutedOn" type="checkbox" @change="onToggleMuted" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
             <span>🔒 防息屏</span>
             <label class="switch">
               <input v-model="wakeLockOn" type="checkbox" @change="onToggleWakeLock" />
@@ -147,9 +154,10 @@ import { wakeLockService } from '../services/wakeLock'
 import { antiDetectionService } from '../services/antiDetection'
 import { sidebarNavigatorService } from '../services/sidebarNavigator'
 import { courseProgressStore } from '../services/courseProgressStore'
+import { recordQuizSkip, resetQuizSkipGuard } from '../services/quizSkipGuard'
 import { useDraggablePanel } from '../composables/useDraggablePanel'
 import { getPanelConfig } from '../utils/panel'
-import { getModuleIdFromUrl, isQuizPage } from '../utils/url'
+import { getCourseId, getModuleIdFromUrl, isQuizPage } from '../utils/url'
 import { formatDuration } from '../utils/time'
 import { showUserNotice } from '../utils/userNotice'
 
@@ -175,6 +183,7 @@ const speedMode = ref<SpeedMode>(SpeedMode.NORMAL)
 const playbackRate = ref(1.5)
 const wakeLockOn = ref(true)
 const antiDetectionOn = ref(true)
+const mutedOn = ref(true)
 const statusText = ref('等待开始...')
 const currentAction = ref('')
 
@@ -193,6 +202,12 @@ let pageTimer: number | null = null
 let refreshTimer: number | null = null
 let videoCheckTimer: number | null = null
 let timeTimer: number | null = null // 刷新"本次刷课时间"显示
+
+// ===== 视频卡住兜底 =====
+// 记录最近一次检测到视频"正在播放"的时间；超过 idleTimeoutMs 无播放进展则强制跳转，
+// 避免平台锁死 play() 导致脚本永远卡在视频页。
+let videoProgressAt = 0
+const VIDEO_IDLE_TIMEOUT_MS = 90 * 1000 // 视频卡住 90 秒视为异常
 
 // ===== 选项 =====
 const speedModeOptions = [
@@ -327,6 +342,18 @@ function onToggleAntiDetection(): void {
   }
 }
 
+function onToggleMuted(): void {
+  settingsStoreService.save({ muted: mutedOn.value })
+  log(mutedOn.value ? '静音刷课已开启' : '静音刷课已关闭')
+  // 若正在播放，立即同步当前视频静音状态
+  if (isRunning.value) {
+    const v = videoManagerService.find()
+    if (v) {
+      v.muted = mutedOn.value
+    }
+  }
+}
+
 function onToggleRunning(): void {
   if (isRunning.value) {
     stopBrushing()
@@ -349,6 +376,7 @@ function startBrushing(opts?: { resetSession?: boolean }): void {
   if (shouldReset) {
     // 手动点击"开始"时认为是全新会话，重置计数
     settingsStoreService.sessionReset()
+    resetQuizSkipGuard()
     stats.itemsDone = 0
   } else {
     // 自动恢复时，使用已存在的 session 继续计数
@@ -359,7 +387,7 @@ function startBrushing(opts?: { resetSession?: boolean }): void {
   log('=== 开始刷课 ===')
 
   // 初始化课程进度共享状态
-  const courseId = getCourseIdFromUrl()
+  const courseId = getCourseId()
   const courseName = document.title.replace(/\s*[-_].*$/, '').trim() || '未知课程'
   const items = sidebarNavigatorService.getAllItems()
   if (courseId) {
@@ -407,12 +435,6 @@ function stopBrushing(): void {
   log('=== 停止刷课 ===')
 }
 
-/** 从 URL 中提取课程 ID */
-function getCourseIdFromUrl(): string | null {
-  const match = window.location.href.match(/\/course\/view\.php\?id=(\d+)/)
-  return match ? match[1] : null
-}
-
 function processCurrentPage(): void {
   if (!isRunning.value) return
 
@@ -422,6 +444,19 @@ function processCurrentPage(): void {
 
     // 测验/答题页：刷课模式下跳过（提示后自动进入下一项）
     if (isQuizPage()) {
+      // 防死循环：记录本次测验跳过
+      const quizModuleId = getModuleIdFromUrl(url)
+      if (recordQuizSkip(quizModuleId)) {
+        log('→ 检测到连续跳过同一测验多次，可能陷入死循环，停止刷课')
+        currentAction.value = '连续测验疑似死循环，已停止'
+        showUserNotice(
+          '连续多次跳转后仍未离开测验，疑似定位异常。已自动停止刷课，请检查课程内容。',
+          { type: 'error', duration: 6000 }
+        )
+        stopBrushing()
+        return
+      }
+
       currentAction.value = '检测到测验，将跳过'
       const skipWaitMs = 4500
       log(`→ 检测到测验/答题页，刷课模式下 ${skipWaitMs}ms 后自动跳过`)
@@ -498,6 +533,8 @@ function processCurrentPage(): void {
     if (video) {
       log(`→ 检测到视频，准备播放 (duration=${Math.round(video.duration || 0)}s)`)
       currentAction.value = '播放视频'
+      // 重置视频卡住跟踪：记录本次页面开始检测视频的时间
+      videoProgressAt = Date.now()
 
       if (speedMode.value === SpeedMode.FAST) {
         videoManagerService.setPlaybackRate(playbackRate.value)
@@ -510,24 +547,38 @@ function processCurrentPage(): void {
         goToNextItem()
       })
 
+      // 静音刷课：直接切静音再播放；否则先按有声播放，自动播放失败再退化为静音
+      const waitThenSkip = (): void => {
+        pageTimer = window.setTimeout(() => {
+          if (isRunning.value) {
+            log('→ 等待超时，强制跳转')
+            stats.itemsDone = settingsStoreService.sessionIncrementItems()
+            goToNextItem()
+          }
+        }, settings.pageWaitTime || 5000)
+      }
+
+      if (mutedOn.value) {
+        video.muted = true
+      }
       video.play().then(() => {
-        log('→ 视频开始播放')
+        log(mutedOn.value ? '→ 视频以静音方式播放' : '→ 视频开始播放')
       }).catch(() => {
         try {
-          video.muted = true
-          video.play().then(() => {
-            log('→ 视频以静音方式播放')
-          }).catch(() => {
-            log('→ 视频无法自动播放，等待后跳转')
-            const waitMs = settings.pageWaitTime || 5000
-            pageTimer = window.setTimeout(() => {
-              if (isRunning.value) {
-                log('→ 等待超时，强制跳转')
-                stats.itemsDone = settingsStoreService.sessionIncrementItems()
-                goToNextItem()
-              }
-            }, waitMs)
-          })
+          // 有声播放失败：退化为静音再试一次
+          if (!mutedOn.value) {
+            video.muted = true
+            video.play().then(() => {
+              log('→ 视频以静音方式播放')
+            }).catch(() => {
+              log('→ 视频无法自动播放，等待后跳转')
+              waitThenSkip()
+            })
+            return
+          }
+          // 静音播放仍失败：等待后跳转
+          log('→ 视频无法自动播放，等待后跳转')
+          waitThenSkip()
         } catch {
           log('→ 视频播放失败，跳转到下一个')
           stats.itemsDone = settingsStoreService.sessionIncrementItems()
@@ -547,7 +598,23 @@ function processCurrentPage(): void {
             stats.itemsDone = settingsStoreService.sessionIncrementItems()
             goToNextItem()
           } else if (v.paused) {
+            // 卡住兜底：若长时间没有播放进展，判定视频被平台锁死，强制跳转
+            const idleMs = Date.now() - videoProgressAt
+            if (idleMs > VIDEO_IDLE_TIMEOUT_MS) {
+              log(`→ 视频卡住超过 ${Math.round(VIDEO_IDLE_TIMEOUT_MS / 1000)}s，强制跳转`)
+              currentAction.value = '视频异常，自动跳过'
+              showUserNotice(
+                '检测到视频长时间无法播放，已自动跳过，继续下一个项目。',
+                { type: 'warn', duration: 4000 }
+              )
+              stats.itemsDone = settingsStoreService.sessionIncrementItems()
+              goToNextItem()
+              return
+            }
             v.play().catch(() => {})
+          } else {
+            // 视频正在播放，刷新"有进展"时间
+            videoProgressAt = Date.now()
           }
         }
       }, 3000)
@@ -689,6 +756,7 @@ onMounted(() => {
     playbackRate.value = settings.videoPlaybackRate
     wakeLockOn.value = settings.wakeLock
     antiDetectionOn.value = settings.antiDetection
+    mutedOn.value = settings.muted
 
     // 从 session 恢复本次刷课计数（页面跳转后保持）
     const sessionData = settingsStoreService.sessionGet()
