@@ -2,13 +2,17 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs'
+import pkg from './package.json'
+
+// 版本号单源维护：只改 package.json 的 "version"，构建时自动注入油猴脚本头
+const VERSION = pkg.version ?? '0.0.0'
 
 const USERSCRIPT_HEADER = `// ==UserScript==
 // @name         国家开放大学实验学院自动刷课脚本
 // @namespace    https://github.com/lucky845
 // @homepageURL   https://github.com/lucky845/ouchn-course-brusher-script
 // @source        https://github.com/lucky845/ouchn-course-brusher-script
-// @version       2.2.4
+// @version       ${VERSION}
 // @description  国家开放大学实验学院自动刷课脚本 - Vue3 版本，支持题目提取、学生首页助手和课程详情页助手(github 仓库: https://github.com/lucky845/ouchn-course-brusher-script)
 // @author       lucky845
 // @match        https://moodle.syxy.ouchn.cn/mod/*
