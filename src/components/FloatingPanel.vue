@@ -149,7 +149,7 @@ import { sidebarNavigatorService } from '../services/sidebarNavigator'
 import { courseProgressStore } from '../services/courseProgressStore'
 import { useDraggablePanel } from '../composables/useDraggablePanel'
 import { getPanelConfig } from '../utils/panel'
-import { getModuleIdFromUrl, isQuizPage } from '../utils/url'
+import { getCourseId, getModuleIdFromUrl, isQuizPage } from '../utils/url'
 import { formatDuration } from '../utils/time'
 import { showUserNotice } from '../utils/userNotice'
 
@@ -359,7 +359,7 @@ function startBrushing(opts?: { resetSession?: boolean }): void {
   log('=== 开始刷课 ===')
 
   // 初始化课程进度共享状态
-  const courseId = getCourseIdFromUrl()
+  const courseId = getCourseId()
   const courseName = document.title.replace(/\s*[-_].*$/, '').trim() || '未知课程'
   const items = sidebarNavigatorService.getAllItems()
   if (courseId) {
@@ -405,12 +405,6 @@ function stopBrushing(): void {
   courseProgressStore.stopBrushing()
 
   log('=== 停止刷课 ===')
-}
-
-/** 从 URL 中提取课程 ID */
-function getCourseIdFromUrl(): string | null {
-  const match = window.location.href.match(/\/course\/view\.php\?id=(\d+)/)
-  return match ? match[1] : null
 }
 
 function processCurrentPage(): void {
