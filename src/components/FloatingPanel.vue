@@ -78,6 +78,13 @@
         <!-- 开关 -->
         <div class="section-card">
           <div class="toggle-row">
+            <span>🔇 静音刷课</span>
+            <label class="switch">
+              <input v-model="mutedOn" type="checkbox" @change="onToggleMuted" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
             <span>🔒 防息屏</span>
             <label class="switch">
               <input v-model="wakeLockOn" type="checkbox" @change="onToggleWakeLock" />
@@ -176,6 +183,7 @@ const speedMode = ref<SpeedMode>(SpeedMode.NORMAL)
 const playbackRate = ref(1.5)
 const wakeLockOn = ref(true)
 const antiDetectionOn = ref(true)
+const mutedOn = ref(true)
 const statusText = ref('等待开始...')
 const currentAction = ref('')
 
@@ -331,6 +339,18 @@ function onToggleAntiDetection(): void {
   } else {
     antiDetectionService.stop()
     log('防检测已关闭')
+  }
+}
+
+function onToggleMuted(): void {
+  settingsStoreService.save({ muted: mutedOn.value })
+  log(mutedOn.value ? '静音刷课已开启' : '静音刷课已关闭')
+  // 若正在播放，立即同步当前视频静音状态
+  if (isRunning.value) {
+    const v = videoManagerService.find()
+    if (v) {
+      v.muted = mutedOn.value
+    }
   }
 }
 
@@ -527,24 +547,38 @@ function processCurrentPage(): void {
         goToNextItem()
       })
 
+      // 静音刷课：直接切静音再播放；否则先按有声播放，自动播放失败再退化为静音
+      const waitThenSkip = (): void => {
+        pageTimer = window.setTimeout(() => {
+          if (isRunning.value) {
+            log('→ 等待超时，强制跳转')
+            stats.itemsDone = settingsStoreService.sessionIncrementItems()
+            goToNextItem()
+          }
+        }, settings.pageWaitTime || 5000)
+      }
+
+      if (mutedOn.value) {
+        video.muted = true
+      }
       video.play().then(() => {
-        log('→ 视频开始播放')
+        log(mutedOn.value ? '→ 视频以静音方式播放' : '→ 视频开始播放')
       }).catch(() => {
         try {
-          video.muted = true
-          video.play().then(() => {
-            log('→ 视频以静音方式播放')
-          }).catch(() => {
-            log('→ 视频无法自动播放，等待后跳转')
-            const waitMs = settings.pageWaitTime || 5000
-            pageTimer = window.setTimeout(() => {
-              if (isRunning.value) {
-                log('→ 等待超时，强制跳转')
-                stats.itemsDone = settingsStoreService.sessionIncrementItems()
-                goToNextItem()
-              }
-            }, waitMs)
-          })
+          // 有声播放失败：退化为静音再试一次
+          if (!mutedOn.value) {
+            video.muted = true
+            video.play().then(() => {
+              log('→ 视频以静音方式播放')
+            }).catch(() => {
+              log('→ 视频无法自动播放，等待后跳转')
+              waitThenSkip()
+            })
+            return
+          }
+          // 静音播放仍失败：等待后跳转
+          log('→ 视频无法自动播放，等待后跳转')
+          waitThenSkip()
         } catch {
           log('→ 视频播放失败，跳转到下一个')
           stats.itemsDone = settingsStoreService.sessionIncrementItems()
@@ -722,6 +756,7 @@ onMounted(() => {
     playbackRate.value = settings.videoPlaybackRate
     wakeLockOn.value = settings.wakeLock
     antiDetectionOn.value = settings.antiDetection
+    mutedOn.value = settings.muted
 
     // 从 session 恢复本次刷课计数（页面跳转后保持）
     const sessionData = settingsStoreService.sessionGet()

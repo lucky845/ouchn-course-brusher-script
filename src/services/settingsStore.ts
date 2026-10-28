@@ -18,7 +18,8 @@ const DEFAULT_SETTINGS: Settings = {
   speedMode: SpeedMode.NORMAL,
   videoPlaybackRate: 1,
   antiDetection: true,
-  wakeLock: true
+  wakeLock: true,
+  muted: true
 }
 
 export const SPEED_MODES: Record<SpeedMode, { videoCheck: number, pageWait: number }> = {

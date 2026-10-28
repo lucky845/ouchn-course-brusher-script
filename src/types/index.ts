@@ -60,6 +60,8 @@ export interface Settings {
   videoPlaybackRate: number
   antiDetection: boolean
   wakeLock: boolean
+  /** 刷课视频静音播放（避免刷课时出声打扰） */
+  muted: boolean
 }
 
 export interface SessionStats {
