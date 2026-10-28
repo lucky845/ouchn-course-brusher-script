@@ -29,7 +29,7 @@
             <div class="stat-divider"></div>
             <div class="stat-item">
               <span class="stat-value">{{ pendingCount }}</span>
-              <span class="stat-label">待办</span>
+              <span class="stat-label">待办任务</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
