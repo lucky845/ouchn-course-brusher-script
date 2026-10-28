@@ -147,6 +147,7 @@ import { wakeLockService } from '../services/wakeLock'
 import { antiDetectionService } from '../services/antiDetection'
 import { sidebarNavigatorService } from '../services/sidebarNavigator'
 import { courseProgressStore } from '../services/courseProgressStore'
+import { recordQuizSkip, resetQuizSkipGuard } from '../services/quizSkipGuard'
 import { useDraggablePanel } from '../composables/useDraggablePanel'
 import { getPanelConfig } from '../utils/panel'
 import { getCourseId, getModuleIdFromUrl, isQuizPage } from '../utils/url'
@@ -349,6 +350,7 @@ function startBrushing(opts?: { resetSession?: boolean }): void {
   if (shouldReset) {
     // 手动点击"开始"时认为是全新会话，重置计数
     settingsStoreService.sessionReset()
+    resetQuizSkipGuard()
     stats.itemsDone = 0
   } else {
     // 自动恢复时，使用已存在的 session 继续计数
@@ -416,6 +418,19 @@ function processCurrentPage(): void {
 
     // 测验/答题页：刷课模式下跳过（提示后自动进入下一项）
     if (isQuizPage()) {
+      // 防死循环：记录本次测验跳过
+      const quizModuleId = getModuleIdFromUrl(url)
+      if (recordQuizSkip(quizModuleId)) {
+        log('→ 检测到连续跳过同一测验多次，可能陷入死循环，停止刷课')
+        currentAction.value = '连续测验疑似死循环，已停止'
+        showUserNotice(
+          '连续多次跳转后仍未离开测验，疑似定位异常。已自动停止刷课，请检查课程内容。',
+          { type: 'error', duration: 6000 }
+        )
+        stopBrushing()
+        return
+      }
+
       currentAction.value = '检测到测验，将跳过'
       const skipWaitMs = 4500
       log(`→ 检测到测验/答题页，刷课模式下 ${skipWaitMs}ms 后自动跳过`)
