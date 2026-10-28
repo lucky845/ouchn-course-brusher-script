@@ -29,7 +29,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
+          # package-lock.json 已按项目约定从版本控制移除并忽略，
+          # 因此不使用 npm 缓存（缓存依赖 lock 文件，会直接报错）
+          cache: ''
 
       - name: Install dependencies
         run: npm install
