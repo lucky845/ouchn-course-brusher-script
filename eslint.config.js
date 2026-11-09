@@ -11,8 +11,6 @@ export default tseslint.config(
       'legacy/**',
       'node_modules/**',
       '*.d.ts',
-      'vite.config.ts',
-      'vite.config.*.ts',
     ],
   },
 
@@ -33,7 +31,6 @@ export default tseslint.config(
         sourceType: 'module',
         extraFileExtensions: ['.vue'],
         projectService: {
-          allowDefaultProject: ['*.config.*'],
           defaultProject: './tsconfig.json',
         },
         tsconfigRootDir: import.meta.dirname,

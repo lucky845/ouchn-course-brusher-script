@@ -5,11 +5,6 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      version:
-        description: '版本号 (如 2.0.0)，不填则从 package.json 读取'
-        required: false
-        type: string
 
 concurrency:
   group: build-release
@@ -29,23 +24,42 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          # package-lock.json 已按项目约定从版本控制移除并忽略，
-          # 因此不使用 npm 缓存（缓存依赖 lock 文件，会直接报错）
-          cache: ''
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
 
       - name: Build
         run: npm run build
+
+      - name: Verify dist artifact
+        run: npm run verify:dist
 
       - name: Read version from package.json
         id: version
         run: |
           VER=$(node -p "require('./package.json').version")
-          INPUT_VER="${{ github.event.inputs.version }}"
-          FINAL_VER="${INPUT_VER:-$VER}"
-          echo "ver=$FINAL_VER" >> $GITHUB_OUTPUT
+          echo "ver=$VER" >> $GITHUB_OUTPUT
+          echo "版本: $VER"
+
+      - name: Assert tag matches package version
+        if: github.event_name == 'push'
+        run: |
+          VER="${{ steps.version.outputs.ver }}"
+          if [ "v${VER}" != "${GITHUB_REF_NAME}" ]; then
+            echo "❌ tag ${GITHUB_REF_NAME} 与 package.json 版本 v${VER} 不一致"
+            exit 1
+          fi
+          echo "✅ tag 与 package.json 版本一致"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

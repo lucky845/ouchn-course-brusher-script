@@ -39,11 +39,11 @@ export default defineConfig({
         const distDir = resolve(__dirname, 'dist')
         const outputPath = resolve(distDir, 'ouchn-course-brusher-vue.user.js')
         // 根据你当前的构建产物名称，Vite 默认可能会生成 style.css
-        const cssPath = resolve(distDir, 'style.css') 
-        
+        const cssPath = resolve(distDir, 'style.css')
+
         try {
           let cssContent = ''
-          
+
           // 1. 如果抽离出了单独的 CSS 文件，读取它并将其转化为油猴的 GM_addStyle
           if (existsSync(cssPath)) {
             const rawCss = readFileSync(cssPath, 'utf-8')
@@ -52,21 +52,23 @@ export default defineConfig({
             // 同时把 CSS 存为全局变量，供 Shadow DOM 内部样式注入使用（不依赖 head 中可能被平台清理的 style）
             const globalCssJs = `\n;(function(){ if(typeof window!=='undefined'){ try{ window.__OCHN_CSS__ = ${JSON.stringify(rawCss)}; }catch(e){} } })();\n`
             cssContent = globalCssJs + `\n;(function(){ if(typeof GM_addStyle !== 'undefined') { GM_addStyle(\`${safeCss}\`); } })();\n`
-            
+
             // 读取完后删除掉 dist 下独立的 css 文件，保持目录干净
             unlinkSync(cssPath)
           }
-          
+
           // 2. 读取已经压缩好的核心 JS 代码
           const jsContent = readFileSync(outputPath, 'utf-8')
-          
+
           // 3. 将【元数据】+【抽离出的 CSS 样式】+【JS主体】完美融合成一个纯净单文件
           const finalContent = USERSCRIPT_HEADER + '\n' + cssContent + '\n' + jsContent.trim()
-          
+
           writeFileSync(outputPath, finalContent, 'utf-8')
           console.log('[Build] Userscript header and CSS injected into single file successfully!')
         } catch (e) {
           console.error('[Build] Error packing single file userscript:', e)
+          // fail-closed：注入失败必须让构建失败，否则会发布没有 UserScript 头的产物
+          throw e
         }
       }
     }
@@ -75,19 +77,17 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    minify: 'terser', 
+    minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: false, 
-        drop_debugger: true,
+        drop_console: false,
+        drop_debugger: true
       },
-      mangle: true, 
-      format: {
-        max_line_len: 500, // 核心：每 500 个字符强制换行
-      },
+      mangle: true
+      // 不再设置 max_line_len：强制换行会让压缩器插入更多伪断点，gzip 反而变大
     },
     // 注意：这里需要改为 true，以便让 Vite 把 CSS 正常生成出来供我们插件读取注入
-    cssCodeSplit: true, 
+    cssCodeSplit: true,
     rollupOptions: {
       input: { main: resolve(__dirname, 'index.html') },
       output: {
@@ -96,9 +96,9 @@ export default defineConfig({
         entryFileNames: 'ouchn-course-brusher-vue.user.js',
         // 强制固定生成的 CSS 文件名为 style.css 方便精准读取
         assetFileNames: 'style.css',
-        inlineDynamicImports: true, 
-      },
-    },
+        inlineDynamicImports: true
+      }
+    }
   },
   resolve: {
     alias: { '@': resolve(__dirname, 'src') }

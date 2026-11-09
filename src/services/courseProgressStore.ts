@@ -225,18 +225,21 @@ export class CourseProgressStore {
       this.data.courses[courseId].lastUpdateTime = Date.now()
     }
 
-    // 从课程详情页同步已完成的活动状态（使用 moduleId 作为 key）
-    const completedMap: Record<string, boolean> = {}
+    // 更新完成列表：增量合并而非整表覆盖。
+    // 详情页提取可能不完整（页面未渲染完/接口失败），整表覆盖会一次性抹掉历史进度并落盘。
+    const completedActivities = this.data.courses[courseId].completedActivities
+    let mergedCount = 0
     courseInfo.chapters.forEach((chapter) => {
       chapter.activities.forEach((activity) => {
-        if (activity.moduleId && activity.status === ChapterStatus.COMPLETED) {
-          completedMap[activity.moduleId] = true
+        if (activity.moduleId && activity.status === ChapterStatus.COMPLETED && !completedActivities[activity.moduleId]) {
+          completedActivities[activity.moduleId] = true
+          mergedCount++
         }
       })
     })
-
-    // 更新完成列表
-    this.data.courses[courseId].completedActivities = completedMap
+    if (mergedCount > 0) {
+      console.log('[CourseProgressStore] 新增已完成活动:', mergedCount)
+    }
 
     // 检查课程是否完成
     this.checkCourseCompleted(courseId)

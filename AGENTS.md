@@ -13,7 +13,7 @@
 - **课程详情页助手**（v2.2.0 新增）：章节导航、进度概览、书签、搜索、提醒、跨面板联动
 - **侧边栏状态显示**（v2.2.1 新增）：在刷课页面侧边栏显示活动完成状态，通过 moduleId 匹配课程完成情况
 
-**版本**：v2.2.2
+**版本**：v2.2.6
 **构建产物**：`dist/ouchn-course-brusher-vue.user.js`
 
 ## 技术栈
@@ -22,8 +22,9 @@
 |------|------|------|
 | Vue 3 | ^3.4.21 | Composition API + `<script setup>` |
 | TypeScript | ^5.4.2 | 类型安全 |
-| Vite | >=6.4.3 | 构建打包 |
+| Vite | 8.3.5 | 构建打包 |
 | Terser | ^5.48.0 | 代码压缩 |
+| Vitest | ^5.0.5 | 单元测试 |
 
 ## 项目结构
 
@@ -192,8 +193,12 @@ PANEL_CONFIG_MAP: {
 
 URL 工具函数：
 - `isCoursePage()` - 判断是否为课程详情页（`/course/view.php`）
-- `getCourseId()` - 获取课程 ID
+- `getCourseId()` - 获取课程详情页的课程 ID（仅 `/course/view.php?id=`）
+- `getCourseIdFromPage()` - **从页面解析课程 ID**，适用于任何课程内页面（含 `/mod/*` 活动页）
+- `extractCourseIdFromCourseUrl()` - 从 `course/view.php` 链接中提取课程 ID
 - `getCourseName()` - 获取课程名称
+
+> **注意**：`/mod/*` 页面 URL 中的 `id` 是**模块 ID 而非课程 ID**。刷课页、侧边栏导航等场景必须用 `getCourseIdFromPage()`，绝不能直接取 URL 的 `id` 参数。
 
 ### [src/composables/useDraggablePanel.ts](src/composables/useDraggablePanel.ts)
 
@@ -301,4 +306,4 @@ URL 工具函数：
 
 ---
 
-**最后更新**：2026-06-22
+**最后更新**：2026-11-09

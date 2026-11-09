@@ -1,5 +1,5 @@
 import { NAV_ITEM_SELECTORS } from './constants'
-import { parseQueryParams, getBasePath } from '../utils/url'
+import { parseQueryParams, getBasePath, getCourseIdFromPage } from '../utils/url'
 
 const MOD_URL_MARKER = '/mod/'
 
@@ -263,8 +263,9 @@ export class SidebarNavigatorService {
         }
       }
 
-      // 策略 2：查找显式 course id 链接
-      const courseId = currentParams['course'] || currentParams['id']
+      // 策略 2：显式 course 参数，或从页面解析课程 ID
+      // ⚠️ 不能用 currentParams['id']：mod 页的 id 是模块 ID，拿去构造 course/view.php 会跳到不存在的课程
+      const courseId = currentParams['course'] || getCourseIdFromPage()
       if (courseId) {
         const anchors = document.querySelectorAll<HTMLAnchorElement>('a[href]')
         for (let i = 0; i < anchors.length; i++) {

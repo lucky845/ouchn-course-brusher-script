@@ -28,9 +28,14 @@ export const SPEED_MODES: Record<SpeedMode, { videoCheck: number, pageWait: numb
   [SpeedMode.STEALTH]: { videoCheck: 30000, pageWait: 15000 }
 }
 
-/** 校验读取到的对象是否符合 Settings 基本结构 */
+/** 校验读取到的对象是否符合 Settings 基本结构（数值字段必须是 finite number，否则 setTimeout 等会立即触发） */
 function isValidSettings(data: unknown): data is Partial<Settings> {
-  return data !== null && typeof data === 'object'
+  if (data === null || typeof data !== 'object') return false
+  const numericKeys = ['pageWaitTime', 'videoCheckInterval', 'videoPlaybackRate'] as const
+  return numericKeys.every((key) => {
+    const value = (data as Record<string, unknown>)[key]
+    return value === undefined || (typeof value === 'number' && Number.isFinite(value))
+  })
 }
 
 /** 校验读取到的对象是否符合 session 结构 */
@@ -82,8 +87,13 @@ export class SettingsStoreService {
     return { ...this.settings }
   }
 
+  /**
+   * 是否处于刷课启用状态
+   * 缺省为 false：只有用户主动开始刷课时才写入 'true'，
+   * 否则新用户首次进入刷课页会在 1.5 秒后被动开始刷课。
+   */
   isEnabled(): boolean {
-    return readStorageString(ENABLED_KEY) !== 'false'
+    return readStorageString(ENABLED_KEY) === 'true'
   }
 
   setEnabled(enabled: boolean): void {

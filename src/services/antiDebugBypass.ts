@@ -13,10 +13,20 @@ export function installAntiDebugBypass(): void {
     const nativeSetInterval: typeof window.setInterval = window.setInterval.bind(window)
     const nativeSetTimeout: typeof window.setTimeout = window.setTimeout.bind(window)
 
+    // 同一个回调会被反复传入 setInterval/setTimeout（平台的心跳每几秒一次），
+    // 用 WeakMap 缓存 toString 的结果，避免每次都做 String + 正则
+    const debuggerCache = new WeakMap<object, boolean>()
+
     const containsDebugger = (fn: unknown): boolean => {
       try {
-        const src = typeof fn === 'function' ? fn.toString() : String(fn)
-        return /debugger\b/.test(src)
+        if (typeof fn === 'function') {
+          const cached = debuggerCache.get(fn)
+          if (cached !== undefined) return cached
+          const hit = /debugger\b/.test(fn.toString())
+          debuggerCache.set(fn, hit)
+          return hit
+        }
+        return /debugger\b/.test(String(fn))
       } catch {
         return false
       }
@@ -40,8 +50,8 @@ export function installAntiDebugBypass(): void {
       Object.defineProperty(window, 'setInterval', { value: patchedSetInterval, writable: true, configurable: true })
       Object.defineProperty(window, 'setTimeout', { value: patchedSetTimeout, writable: true, configurable: true })
     } catch {
-      (window as any).setInterval = patchedSetInterval
-      (window as any).setTimeout = patchedSetTimeout
+      ;(window as any).setInterval = patchedSetInterval
+      ;(window as any).setTimeout = patchedSetTimeout
     }
 
     // 拦截 DevTools 检测常用的尺寸差异：伪装 window 尺寸

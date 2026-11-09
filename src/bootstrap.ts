@@ -1,7 +1,7 @@
 /**
  * 面板初始化 / 启动流程
  */
-import { createApp } from 'vue'
+import { createApp, type App } from 'vue'
 import FloatingPanel from './components/FloatingPanel.vue'
 import QuizPanel from './components/QuizPanel.vue'
 import HomePanel from './components/HomePanel.vue'
@@ -30,6 +30,9 @@ const PANEL_CONFIGS: Record<PanelTypeKey, PanelConfig> = {
 
 let isInitializing = false
 let initializedPanel = ''
+// 保留 Vue 应用实例：重建前必须 unmount，否则各组件 onUnmounted 里的清理（定时器/订阅/监听）全是死代码
+let appInstance: App<Element> | null = null
+let mountedHost: HTMLElement | null = null
 
 function detectPanelType(): PanelTypeKey | null {
   if (isStudentHomePage()) return 'home'
@@ -109,18 +112,33 @@ function mountPanel(panelType: PanelTypeKey): void {
     window.setTimeout(copyStylesIntoShadow, 1500)
   } catch {}
   try {
-    createApp(config.component).mount(container)
+    appInstance = createApp(config.component)
+    appInstance.mount(container)
+    mountedHost = host
   } catch (e) {
     console.error('[刷课脚本] Vue 挂载失败:', e)
     host.textContent = '刷课脚本挂载失败: ' + (e as Error).message
   }
   initializedPanel = panelType
   writeStorageString(PANEL_TYPE_KEY, panelType)
-  // 诊断标记
-  const marker = document.createElement('div')
-  marker.textContent = '✓ ' + config.label
-  marker.style.cssText = 'position:fixed;bottom:10px;right:10px;z-index:2147483647;background:#6c5ce7;color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;'
-  document.documentElement.appendChild(marker)
+}
+
+/** 卸载当前 Vue 应用并移除宿主节点，确保组件 onUnmounted 清理真正执行 */
+function unmountPanel(): void {
+  try {
+    sidebarStatusInjector.destroy()
+  } catch {}
+  try {
+    if (appInstance) appInstance.unmount()
+  } catch (e) {
+    console.error('[刷课脚本] Vue 卸载失败:', e)
+  }
+  try {
+    if (mountedHost) mountedHost.remove()
+  } catch {}
+  appInstance = null
+  mountedHost = null
+  initializedPanel = ''
 }
 
 function init(): void {
@@ -133,7 +151,9 @@ function init(): void {
 
     isInitializing = true
     mountPanel(panelType)
-    try { sidebarStatusInjector.init() } catch {}
+    try {
+      sidebarStatusInjector.init()
+    } catch {}
     isInitializing = false
 
     setTimeout(() => {
@@ -154,7 +174,8 @@ export function scheduleInit(): void {
     const pt = detectPanelType()
     if (!pt) return
     if (hasExistingPanel()) return
-    initializedPanel = ''
+    // 宿主已被站点移除，但 Vue 实例与其组件仍在运行：先 unmount 才能触发各组件的清理逻辑
+    unmountPanel()
     isInitializing = false
     init()
   }
@@ -183,9 +204,34 @@ export function scheduleInit(): void {
   window.addEventListener('hashchange', () => setTimeout(ensurePanel, 300))
   window.addEventListener('popstate', () => setTimeout(ensurePanel, 300))
 
-  const observer = new MutationObserver(() => {
-    ensurePanel()
+  // 整页 subtree 监听很贵（平台的课程列表会批量插入节点），
+  // 只有「我们自己那个宿主节点」消失时才需要重建，其余变动直接忽略。
+  const observer = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      const nodes = m.removedNodes
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i]
+        if (node.nodeType !== Node.ELEMENT_NODE) continue
+        const el = node as HTMLElement
+        if (el.id && PANEL_CONFIGS[initializedPanel as PanelTypeKey]?.id === el.id) {
+          ensurePanel()
+          return
+        }
+      }
+    }
   })
+  // 自动重挂兜底：每秒轮询会把整个 Vue 应用重建一遍，
+  // 因此限速为每 30 秒最多重建 1 次，且面板存在时轮询直接空闲
+  let lastRebuildAt = 0
+  const REBUILD_INTERVAL_MS = 30000
+  const pollEnsurePanel = (): void => {
+    if (!document.documentElement) return
+    if (hasExistingPanel()) return
+    const now = Date.now()
+    if (now - lastRebuildAt < REBUILD_INTERVAL_MS) return
+    lastRebuildAt = now
+    ensurePanel()
+  }
   const attachObserver = (): void => {
     if (document.documentElement) {
       observer.observe(document.documentElement, { childList: true, subtree: true })
@@ -195,5 +241,5 @@ export function scheduleInit(): void {
   else document.addEventListener('DOMContentLoaded', attachObserver)
 
   // 兜底轮询
-  window.setInterval(ensurePanel, 1000)
+  window.setInterval(pollEnsurePanel, 1000)
 }

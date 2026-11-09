@@ -10,7 +10,7 @@
  */
 import { courseProgressStore, type CourseProgress } from './courseProgressStore'
 import { courseNavigatorService } from './courseNavigator'
-import { isCoursePage, isModPage, isStudentHomePage, getCourseId } from '../utils/url'
+import { isCoursePage, isModPage, isStudentHomePage, getCourseId, getCourseIdFromPage, extractCourseIdFromCourseUrl } from '../utils/url'
 import { parseQueryParams } from '../utils/url'
 import { createLogger } from '../utils/logger'
 
@@ -20,6 +20,8 @@ export class SidebarStatusInjector {
   private observer: MutationObserver | null = null
   private isInitialized = false
   private injectedTargets = new WeakSet<HTMLElement>()
+  private lastInjectAt = 0
+  private reinjectTimer: ReturnType<typeof setTimeout> | null = null
 
   init(): void {
     if (this.isInitialized) return
@@ -52,7 +54,8 @@ export class SidebarStatusInjector {
   private handleCoursePage(): void {
     try {
       const courseInfo = courseNavigatorService.extractCourseInfo()
-      if (courseInfo && courseInfo.courseId) {
+      // 章节为空说明页面没渲染完，跳过同步以免污染已完成记录
+      if (courseInfo && courseInfo.courseId && courseInfo.chapters.length > 0) {
         courseProgressStore.syncFromCourseInfo(courseInfo)
         logger.info('课程详情页已同步: courseId=' + courseInfo.courseId)
       }
@@ -69,7 +72,7 @@ export class SidebarStatusInjector {
   private handleModPage(): number {
     let count = 0
 
-    const courseId = this.findCourseIdFromPage()
+    const courseId = getCourseIdFromPage()
 
     if (!courseId) {
       logger.warn('mod 页未能解析到课程ID')
@@ -216,107 +219,12 @@ export class SidebarStatusInjector {
   // ============================== 课程 ID 提取 ==============================
 
   /**
-   * 从 mod 页面中提取课程 ID
-   * ⚠️ Moodle 注意：mod 页面 URL 中的 id=XXX 是活动/模块ID，不是课程ID！
-   *    必须从页面内容（面包屑/导航链接）中解析课程ID
-   *
-   * 策略优先级：
-   *   1. 面包屑中指向 course/view.php 的链接（最可靠）
-   *   2. 页面上任意 course/view.php?id=XXX 链接
-   *   3. body class 中的 course-XXX 类名
-   *   4. 整个页面 HTML 中的 course/view.php?id=XXX 正则匹配
-   */
-  private findCourseIdFromPage(): string | null {
-    // ⚠️ 绝对不能从 URL 取 id 参数！mod 页面的 id 是模块ID而非课程ID
-
-    // 1. 面包屑中找课程链接（Moodle 标准面包屑：首页 > 课程名 > 活动名）
-    const breadcrumbSelectors = [
-      '.breadcrumb a[href*="course/view.php"]',
-      '.breadcrumb-item a[href*="course/view.php"]',
-      '.breadcrumb a[href*="/course/"]',
-      'nav[aria-label*="breadcrumb"] a[href*="course/view.php"]',
-      'ul.breadcrumb a[href*="course/view.php"]',
-      'ol.breadcrumb a[href*="course/view.php"]'
-    ]
-    for (const selector of breadcrumbSelectors) {
-      const links = document.querySelectorAll<HTMLAnchorElement>(selector)
-      for (let i = 0; i < links.length; i++) {
-        const id = this.extractCourseIdFromCourseUrl(links[i].href)
-        if (id) {
-          logger.debug('✓ 通过面包屑找到 courseId:', id)
-          return id
-        }
-      }
-    }
-
-    const allCourseLinks = document.querySelectorAll<HTMLAnchorElement>('a[href*="course/view.php"]')
-    for (let i = 0; i < allCourseLinks.length; i++) {
-      const id = this.extractCourseIdFromCourseUrl(allCourseLinks[i].href)
-      if (id) {
-        logger.debug('✓ 通过页面链接找到 courseId:', id)
-        return id
-      }
-    }
-
-    if (document.body) {
-      const bodyClass = document.body.className
-      const match = bodyClass.match(/course-(\d+)/)
-      if (match) {
-        logger.debug('✓ 通过 body class 找到 courseId:', match[1])
-        return match[1]
-      }
-    }
-
-    const courseMeta = document.querySelector('input[name="courseid"], input[name="course"]')
-    if (courseMeta) {
-      const value = (courseMeta as HTMLInputElement).value
-      if (/^\d+$/.test(value)) {
-        logger.debug('✓ 通过隐藏输入框找到 courseId:', value)
-        return value
-      }
-    }
-
-    let pageHtml = ''
-    try {
-      pageHtml = document.documentElement.innerHTML
-    } catch {
-      pageHtml = ''
-    }
-    const htmlMatch = pageHtml.match(/course\/view\.php\?id=(\d+)/)
-    if (htmlMatch) {
-      logger.debug('✓ 通过页面HTML找到 courseId:', htmlMatch[1])
-      return htmlMatch[1]
-    }
-
-    logger.warn('✗ 无法从页面解析课程ID')
-    return null
-  }
-
-  /**
-   * 从 course/view.php 类型的 URL 中提取课程 ID
-   * 注意：只识别 course/view.php?id=XXX 中的 id，不用于其他页面！
-   */
-  private extractCourseIdFromCourseUrl(url: string): string | null {
-    // 快速过滤：必须包含 course/view.php
-    if (!url.includes('course/view.php')) return null
-
-    const params = parseQueryParams(url)
-    if (params.id && /^\d+$/.test(params.id)) {
-      return params.id
-    }
-
-    // 备用正则
-    const match = url.match(/course\/view\.php\?id=(\d+)/)
-    return match ? match[1] : null
-  }
-
-  /**
    * 从任意 URL 中提取课程 ID（用于首页课程卡片等场景）
    * 仅限 URL 确实是课程详情页 URL 时使用
    */
   private extractCourseIdFromAnyUrl(url: string): string | null {
     if (!url.includes('course/view.php')) return null
-    return this.extractCourseIdFromCourseUrl(url)
+    return extractCourseIdFromCourseUrl(url)
   }
 
   // ============================== 徽章样式 ==============================
@@ -488,7 +396,13 @@ export class SidebarStatusInjector {
       }
 
       if (shouldReInject) {
-        setTimeout(() => {
+        // 限速：DOM 变动频繁时最多每 1 秒重注入一次。
+        // 同时在途的重注入只保留一个，否则一秒钟内的多批 mutation 会排出一串重复注入。
+        if (this.reinjectTimer !== null) return
+        if (Date.now() - this.lastInjectAt < 1000) return
+        this.reinjectTimer = setTimeout(() => {
+          this.reinjectTimer = null
+          this.lastInjectAt = Date.now()
           try {
             if (isCoursePage()) this.handleCoursePage()
             else if (isModPage()) this.handleModPage()
@@ -514,6 +428,10 @@ export class SidebarStatusInjector {
     if (this.observer) {
       this.observer.disconnect()
       this.observer = null
+    }
+    if (this.reinjectTimer !== null) {
+      clearTimeout(this.reinjectTimer)
+      this.reinjectTimer = null
     }
     this.isInitialized = false
     this.injectedTargets = new WeakSet()
