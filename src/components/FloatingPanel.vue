@@ -6,9 +6,14 @@
   >
     <!-- 悬浮按钮 (可拖拽) -->
     <div
-      class="float-btn"
+      class="float-btn ouch-float-btn"
+      role="button"
+      tabindex="0"
+      :aria-expanded="isOpen"
+      aria-label="刷课助手"
       @mousedown.prevent="onDragStart"
       @click.stop="onBtnClick"
+      @keydown.enter.prevent="onBtnClick"
     >
       <span class="btn-emoji">🎓</span>
     </div>
@@ -16,25 +21,27 @@
     <!-- 展开面板 -->
     <div
       v-show="isOpen"
-      class="panel"
+      class="panel ouch-panel"
+      role="dialog"
+      aria-label="刷课助手"
       @click.stop
     >
       <!-- header -->
-      <div class="panel-header">
+      <div class="panel-header ouch-titlebar">
         <span class="panel-title">刷课助手 v2.0</span>
-        <button class="close-btn" @click="isOpen = false">✕</button>
+        <button class="close-btn ouch-btn-close" aria-label="关闭" @click="isOpen = false">✕</button>
       </div>
 
       <!-- body -->
-      <div class="panel-body">
+      <div class="panel-body ouch-panel-body">
         <!-- 进度卡片 -->
-        <div class="progress-card">
+        <div class="progress-card ouch-card">
           <div class="progress-top">
             <span class="progress-count">{{ stats.current }} / {{ stats.total }}</span>
             <span class="progress-percent">{{ stats.percentage }}%</span>
           </div>
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: stats.percentage + '%' }"></div>
+          <div class="progress-bar ouch-progress-track">
+            <div class="progress-fill ouch-progress-fill" :style="{ width: stats.percentage + '%' }"></div>
           </div>
           <div class="progress-info">
             <span>📚 本次 {{ stats.itemsDone }} 个</span>
@@ -44,13 +51,13 @@
         </div>
 
         <!-- 速度模式 -->
-        <div class="section-card">
-          <div class="section-title">⚡ 速度模式</div>
-          <div class="seg-group">
+        <div class="section-card ouch-card">
+          <div class="section-title ouch-section-title">⚡ 速度模式</div>
+          <div class="seg-group ouch-seg-group">
             <button
               v-for="opt in speedModeOptions"
               :key="opt.value"
-              class="seg-btn"
+              class="seg-btn ouch-seg-btn"
               :class="{ active: speedMode === opt.value }"
               @click="changeSpeedMode(opt.value)"
             >
@@ -60,13 +67,13 @@
         </div>
 
         <!-- 播放速率 (仅快速模式) -->
-        <div v-if="speedMode === SpeedMode.FAST" class="section-card">
-          <div class="section-title">🎬 播放速率</div>
-          <div class="seg-group">
+        <div v-if="speedMode === SpeedMode.FAST" class="section-card ouch-card">
+          <div class="section-title ouch-section-title">🎬 播放速率</div>
+          <div class="seg-group ouch-seg-group">
             <button
               v-for="r in playbackRateOptions"
               :key="r"
-              class="seg-btn"
+              class="seg-btn ouch-seg-btn"
               :class="{ active: playbackRate === r }"
               @click="changePlaybackRate(r)"
             >
@@ -76,53 +83,67 @@
         </div>
 
         <!-- 开关 -->
-        <div class="section-card">
+        <div class="section-card ouch-card">
           <div class="toggle-row">
             <span>🔇 静音刷课</span>
-            <label class="switch">
+            <label class="switch ouch-switch">
               <input v-model="mutedOn" type="checkbox" @change="onToggleMuted" />
-              <span class="slider"></span>
+              <span class="slider ouch-slider"></span>
             </label>
           </div>
           <div class="toggle-row">
             <span>🔒 防息屏</span>
-            <label class="switch">
+            <label class="switch ouch-switch">
               <input v-model="wakeLockOn" type="checkbox" @change="onToggleWakeLock" />
-              <span class="slider"></span>
+              <span class="slider ouch-slider"></span>
             </label>
           </div>
           <div class="toggle-row">
             <span>🛡️ 防检测</span>
-            <label class="switch">
+            <label class="switch ouch-switch">
               <input v-model="antiDetectionOn" type="checkbox" @change="onToggleAntiDetection" />
-              <span class="slider"></span>
+              <span class="slider ouch-slider"></span>
             </label>
           </div>
           <div class="toggle-row">
             <span>▶️ 启用脚本</span>
-            <label class="switch">
+            <label class="switch ouch-switch">
               <input type="checkbox" :checked="isRunning" @change="onToggleRunning" />
-              <span class="slider"></span>
+              <span class="slider ouch-slider"></span>
             </label>
+          </div>
+          <div class="toggle-row">
+            <span>🎨 面板主题</span>
+            <div class="seg-group ouch-seg-group theme-seg">
+              <button
+                v-for="opt in themeOptions"
+                :key="opt.value"
+                class="seg-btn ouch-seg-btn"
+                :class="{ active: themeMode === opt.value }"
+                @click="changeTheme(opt.value)"
+              >
+                {{ opt.label }}
+              </button>
+            </div>
           </div>
         </div>
 
         <!-- 状态 -->
-        <div class="status-area" :class="{ running: isRunning }">
+        <div class="status-area ouch-status" :class="{ running: isRunning }">
           <span>{{ statusText }}</span>
         </div>
 
         <!-- 开始/停止 -->
         <div class="action-row">
           <button
-            class="action-btn start"
+            class="action-btn start ouch-btn"
             :disabled="isRunning"
             @click="() => startBrushing()"
           >
             ▶ 开始
           </button>
           <button
-            class="action-btn stop"
+            class="action-btn stop ouch-btn ouch-btn-danger"
             :disabled="!isRunning"
             @click="stopBrushing"
           >
@@ -131,11 +152,11 @@
         </div>
 
         <!-- 调试日志 -->
-        <div v-if="logs.length > 0" class="log-area">
+        <div v-if="logs.length > 0" class="log-area ouch-log">
           <div
             v-for="(log, i) in logs.slice(-8)"
             :key="i"
-            class="log-line"
+            class="log-line ouch-log-line"
           >
             [{{ log.time }}] {{ log.text }}
           </div>
@@ -148,7 +169,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { settingsStoreService } from '../services/settingsStore'
-import { SpeedMode, PanelType, PanelEdge } from '../types'
+import { SpeedMode, PanelType, PanelEdge, type ThemeMode } from '../types'
 import { videoManagerService } from '../services/videoManager'
 import { wakeLockService } from '../services/wakeLock'
 import { antiDetectionService } from '../services/antiDetection'
@@ -184,6 +205,7 @@ const playbackRate = ref(1.5)
 const wakeLockOn = ref(true)
 const antiDetectionOn = ref(true)
 const mutedOn = ref(true)
+const themeMode = ref<ThemeMode>('auto')
 const statusText = ref('等待开始...')
 const currentAction = ref('')
 
@@ -216,6 +238,11 @@ const speedModeOptions = [
   { value: SpeedMode.STEALTH, label: '🥷 低调' }
 ]
 const playbackRateOptions = [1, 1.5, 2, 3]
+const themeOptions: Array<{ value: ThemeMode, label: string }> = [
+  { value: 'auto', label: '跟随系统' },
+  { value: 'light', label: '浅色' },
+  { value: 'dark', label: '深色' }
+]
 
 // ===== 工具 =====
 const MAX_LOG_LINES = 50
@@ -357,6 +384,13 @@ function onToggleMuted(): void {
       v.muted = mutedOn.value
     }
   }
+}
+
+/** 切换主题：settingsStore.save 内部会调用 applyTheme，写入 <html data-ouch-theme> */
+function changeTheme(mode: ThemeMode): void {
+  themeMode.value = mode
+  settingsStoreService.save({ theme: mode })
+  log(`面板主题：${themeOptions.find(o => o.value === mode)?.label ?? mode}`)
 }
 
 function onToggleRunning(): void {
@@ -763,6 +797,7 @@ onMounted(() => {
     wakeLockOn.value = settings.wakeLock
     antiDetectionOn.value = settings.antiDetection
     mutedOn.value = settings.muted
+    themeMode.value = settings.theme
     videoManagerService.setMutedPreference(settings.muted)
 
     // 从 session 恢复本次刷课计数（页面跳转后保持）
@@ -791,7 +826,10 @@ onUnmounted(() => {
 </script>
 
 <style>
-/* 全局样式（非 scoped，确保能正确显示在页面上） */
+/*
+ * 仅保留布局与交互状态；配色/毛玻璃/圆角/阴影全部来自 src/styles/theme.css 的 --ouch-* 令牌。
+ * 这样暗色模式只需覆盖变量，不必在每个组件里写两套样式。
+ */
 .ouchn-brusher {
   position: fixed;
   left: 0;
@@ -804,48 +842,12 @@ onUnmounted(() => {
 }
 
 .ouchn-brusher.snapping {
-  transition: transform 0.26s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition: transform 0.26s var(--ouch-ease-snap);
 }
 
 .ouchn-brusher.dragging {
   cursor: grabbing;
   z-index: 999999 !important;
-}
-
-.float-btn {
-  width: 56px;
-  height: 56px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-}
-
-.float-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, transparent 50%, rgba(255, 255, 255, 0.05) 100%);
-  opacity: 0;
-  transition: opacity 0.25s ease;
-  border-radius: 50%;
-}
-
-.float-btn:hover {
-  transform: scale(1.1);
-  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.6);
-}
-
-.float-btn:hover::before {
-  opacity: 1;
 }
 
 .btn-emoji {
@@ -858,45 +860,8 @@ onUnmounted(() => {
   top: 0;
   right: 68px;
   width: 320px;
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-  overflow: hidden;
-  cursor: default;
-}
-
-.panel-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  padding: 14px 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.panel-title {
-  letter-spacing: 0.5px;
-}
-
-.close-btn {
-  width: 28px;
-  height: 28px;
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  border-radius: 50%;
-  color: #fff;
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s ease;
-}
-
-.close-btn:hover {
-  background: rgba(255, 255, 255, 0.35);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
 }
 
 .panel-body {
@@ -904,14 +869,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: #f8f9fb;
-}
-
-.progress-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 12px 14px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .progress-top {
@@ -923,159 +880,51 @@ onUnmounted(() => {
 
 .progress-count {
   font-size: 13px;
-  color: #444;
   font-weight: 500;
+  color: var(--ouch-text);
 }
 
 .progress-percent {
   font-size: 16px;
   font-weight: 700;
-  color: #667eea;
+  color: var(--ouch-accent);
+  font-variant-numeric: tabular-nums;
 }
 
 .progress-bar {
-  height: 8px;
-  background: #e9ecef;
-  border-radius: 4px;
-  overflow: hidden;
   margin-bottom: 8px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-  border-radius: 4px;
-  transition: width 0.4s ease;
 }
 
 .progress-info {
   font-size: 12px;
-  color: #666;
   line-height: 1.5;
-}
-
-.section-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 12px 14px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.section-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #444;
-  margin-bottom: 10px;
-}
-
-.seg-group {
-  display: flex;
-  gap: 4px;
-  background: #f3f4f6;
-  padding: 3px;
-  border-radius: 10px;
+  color: var(--ouch-text-muted);
 }
 
 .seg-btn {
-  flex: 1;
-  padding: 7px 6px;
-  border: none;
-  background: transparent;
-  color: #666;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.seg-btn:hover {
-  background: rgba(102, 126, 234, 0.1);
-  color: #667eea;
-}
-
-.seg-btn.active {
-  background: #fff;
-  color: #667eea;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
 .toggle-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 0;
+  gap: 10px;
+  padding: 6px 0;
 }
 
 .toggle-row + .toggle-row {
-  border-top: 1px solid #f0f0f0;
-  margin-top: 4px;
-  padding-top: 9px;
+  border-top: 1px solid var(--ouch-line-soft);
+  margin-top: 2px;
+  padding-top: 10px;
 }
 
 .toggle-row span {
   font-size: 13px;
-  color: #444;
-}
-
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 50px;
-  height: 28px;
-  cursor: pointer;
-}
-
-.switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.slider {
-  position: absolute;
-  inset: 0;
-  background: #e9ecef;
-  border-radius: 14px;
-  transition: all 0.3s ease;
-}
-
-.slider::before {
-  content: '';
-  position: absolute;
-  height: 22px;
-  width: 22px;
-  left: 3px;
-  top: 3px;
-  background: #fff;
-  border-radius: 50%;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.switch input:checked + .slider {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.switch input:checked + .slider::before {
-  transform: translateX(22px);
-}
-
-.status-area {
-  padding: 10px 12px;
-  background: rgba(102, 126, 234, 0.08);
-  border-radius: 10px;
-  font-size: 12px;
-  color: #666;
-  text-align: center;
-  line-height: 1.5;
-}
-
-.status-area.running {
-  background: rgba(102, 126, 234, 0.15);
-  color: #667eea;
-  font-weight: 500;
+  color: var(--ouch-text);
 }
 
 .action-row {
@@ -1085,59 +934,15 @@ onUnmounted(() => {
 
 .action-btn {
   flex: 1;
-  padding: 12px;
-  border: none;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: #fff;
-}
-
-.action-btn.start {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-}
-
-.action-btn.start:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
-}
-
-.action-btn.stop {
-  background: #e53935;
-  box-shadow: 0 4px 12px rgba(229, 57, 53, 0.3);
-}
-
-.action-btn.stop:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(229, 57, 53, 0.4);
-}
-
-.action-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.log-area {
-  background: #1e1e2e;
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 11px;
-  line-height: 1.6;
-  max-height: 150px;
-  overflow-y: auto;
 }
 
 .log-line {
-  color: #a8e6cf;
   word-break: break-all;
 }
 
-.log-line:last-child {
-  color: #fff;
+.theme-seg {
+  width: 168px;
+  flex: none;
 }
 </style>
+

@@ -6,23 +6,28 @@
   >
     <!-- 悬浮按钮 -->
     <div
-      class="quiz-btn"
+      class="quiz-btn ouch-float-btn"
+      role="button"
+      tabindex="0"
+      :aria-expanded="isOpen"
+      aria-label="答题助手"
       @mousedown.prevent="onDragStart"
       @click.stop="onBtnClick"
+      @keydown.enter.prevent="onBtnClick"
     >
       <span class="btn-emoji">📝</span>
     </div>
 
     <!-- 面板 -->
-    <div v-show="isOpen" class="panel" @click.stop>
-      <div class="panel-header">
+    <div v-show="isOpen" class="panel ouch-panel" @click.stop>
+      <div class="panel-header ouch-titlebar">
         <span>答题助手</span>
-        <button class="close-btn" @click="isOpen = false">✕</button>
+        <button class="close-btn ouch-btn-close" @click="isOpen = false">✕</button>
       </div>
 
-      <div class="panel-body">
+      <div class="panel-body ouch-panel-body">
         <!-- 状态 -->
-        <div class="status-area">
+        <div class="status-area ouch-status">
           <span>{{ statusText }}</span>
         </div>
 
@@ -74,11 +79,11 @@
         </div>
 
         <!-- 日志 -->
-        <div v-if="logs.length > 0" class="log-area">
+        <div v-if="logs.length > 0" class="log-area ouch-log">
           <div
             v-for="(l, i) in logs.slice(-5)"
             :key="i"
-            class="log-line"
+            class="log-line ouch-log-line"
           >
             [{{ l.time }}] {{ l.text }}
           </div>
@@ -206,6 +211,10 @@ onMounted(() => {
 </script>
 
 <style>
+/*
+ * 仅保留布局；配色/毛玻璃/圆角/阴影来自 src/styles/theme.css 的 --ouch-* 令牌。
+ * 答题面板沿用同一套令牌，只是主色通过局部覆盖换成粉红，保证四个面板视觉一致。
+ */
 .quiz-panel {
   position: fixed;
   left: 0;
@@ -215,50 +224,16 @@ onMounted(() => {
   user-select: none;
   -webkit-user-select: none;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --ouch-accent: #f5576c;
+  --ouch-grad: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
 }
 
 .quiz-panel.snapping {
-  transition: transform 0.26s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition: transform 0.26s var(--ouch-ease-snap);
 }
 
 .quiz-panel.dragging {
   cursor: grabbing;
-}
-
-.quiz-btn {
-  width: 56px;
-  height: 56px;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  border-radius: 50%;
-  box-shadow: 0 6px 20px rgba(240, 147, 251, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-}
-
-.quiz-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, transparent 50%, rgba(255, 255, 255, 0.05) 100%);
-  opacity: 0;
-  transition: opacity 0.25s ease;
-  border-radius: 50%;
-}
-
-.quiz-btn:hover {
-  transform: scale(1.1);
-  box-shadow: 0 10px 30px rgba(240, 147, 251, 0.6);
-}
-
-.quiz-btn:hover::before {
-  opacity: 1;
 }
 
 .btn-emoji {
@@ -270,41 +245,9 @@ onMounted(() => {
   position: absolute;
   top: 0;
   right: 68px;
-  width: 340px;
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-  overflow: hidden;
-  cursor: default;
-}
-
-.quiz-panel .panel-header {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: #fff;
-  padding: 14px 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.quiz-panel .close-btn {
-  width: 28px;
-  height: 28px;
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  border-radius: 50%;
-  color: #fff;
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.quiz-panel .close-btn:hover {
-  background: rgba(255, 255, 255, 0.35);
+  width: 320px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
 }
 
 .quiz-panel .panel-body {
@@ -312,16 +255,6 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: #f8f9fb;
-}
-
-.quiz-panel .status-area {
-  padding: 10px 14px;
-  background: rgba(240, 147, 251, 0.08);
-  border-radius: 10px;
-  font-size: 12px;
-  color: #555;
-  text-align: center;
 }
 
 .quiz-panel .btn-row {
@@ -334,15 +267,16 @@ onMounted(() => {
   padding: 10px 14px;
   border: none;
   border-radius: 10px;
-  color: #fff;
+  color: var(--ouch-on-accent);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.15s var(--ouch-ease), box-shadow 0.2s var(--ouch-ease);
 }
 
-.quiz-panel .extract-btn.smart {
-  background: linear-gradient(135deg, #43a047 0%, #66bb6a 100%);
+.quiz-panel .extract-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
 }
 
 .quiz-panel .extract-btn.brute {
@@ -353,15 +287,11 @@ onMounted(() => {
   background: linear-gradient(135deg, #8e24aa 0%, #ab47bc 100%);
 }
 
-.quiz-panel .extract-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
-}
-
 .quiz-panel .result-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  background: var(--ouch-surface);
+  border: 1px solid var(--ouch-line-soft);
+  border-radius: var(--ouch-radius-card);
+  box-shadow: var(--ouch-shadow-card);
   overflow: hidden;
 }
 
@@ -370,24 +300,25 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--ouch-line);
   font-size: 13px;
   font-weight: 600;
-  color: #333;
+  color: var(--ouch-text);
 }
 
 .quiz-panel .copy-btn {
   padding: 4px 12px;
   border: none;
   border-radius: 6px;
-  background: #f093fb;
-  color: #fff;
+  background: var(--ouch-grad);
+  color: var(--ouch-on-accent);
   font-size: 11px;
   cursor: pointer;
+  transition: filter 0.2s var(--ouch-ease);
 }
 
 .quiz-panel .copy-btn:hover {
-  background: #e91e63;
+  filter: brightness(1.08);
 }
 
 .quiz-panel .result-list {
@@ -398,7 +329,7 @@ onMounted(() => {
 
 .quiz-panel .question-item {
   padding: 8px 14px;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--ouch-line-soft);
 }
 
 .quiz-panel .question-item:last-child {
@@ -408,8 +339,8 @@ onMounted(() => {
 .quiz-panel .q-no {
   display: inline-block;
   padding: 2px 6px;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: #fff;
+  background: var(--ouch-grad);
+  color: var(--ouch-on-accent);
   border-radius: 4px;
   font-size: 11px;
   font-weight: 600;
@@ -418,7 +349,7 @@ onMounted(() => {
 
 .quiz-panel .q-text {
   font-size: 12px;
-  color: #333;
+  color: var(--ouch-text);
   line-height: 1.5;
   margin-bottom: 6px;
 }
@@ -433,7 +364,7 @@ onMounted(() => {
   gap: 6px;
   padding: 3px 0;
   font-size: 11px;
-  color: #555;
+  color: var(--ouch-text-muted);
   line-height: 1.4;
 }
 
@@ -441,49 +372,40 @@ onMounted(() => {
   display: inline-block;
   min-width: 18px;
   padding: 0 4px;
-  background: #f5f5f5;
+  background: var(--ouch-surface-2);
   border-radius: 4px;
   text-align: center;
   font-weight: 600;
-  color: #666;
+  color: var(--ouch-text-muted);
 }
 
 .quiz-panel .q-type {
   display: inline-block;
   padding: 2px 8px;
-  background: #f0f0f0;
+  background: var(--ouch-surface-2);
   border-radius: 4px;
   font-size: 10px;
-  color: #666;
+  color: var(--ouch-text-muted);
   margin-top: 4px;
 }
 
 .quiz-panel .hint {
   padding: 8px 12px;
-  background: #fff3e0;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.25);
   border-radius: 8px;
   font-size: 11px;
-  color: #795548;
+  color: var(--ouch-text-muted);
   line-height: 1.5;
 }
 
 .quiz-panel .log-area {
-  background: #1e1e2e;
-  border-radius: 8px;
   padding: 6px 10px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 10px;
-  line-height: 1.6;
   max-height: 80px;
-  overflow-y: auto;
 }
 
 .quiz-panel .log-line {
-  color: #a8e6cf;
   word-break: break-all;
-}
-
-.quiz-panel .log-line:last-child {
-  color: #fff;
 }
 </style>

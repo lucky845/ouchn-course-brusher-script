@@ -51,20 +51,24 @@ src/
 │   ├── studyReminder.ts     # 学习提醒服务（v2.2.0）
 │   ├── quizExtractor.ts     # 题目提取
 │   ├── settingsStore.ts     # 配置持久化
-│   ├── progressStats.ts     # 进度统计
 │   ├── wakeLock.ts          # 防息屏
 │   ├── antiDetection.ts     # 防检测
 │   └── constants.ts         # 常量定义
+├── styles/              # 全局样式（v2.2.6）
+│   ├── theme.css            # 设计令牌 + 共享组件类（毛玻璃/暗色）
+│   └── theme.spec.mjs       # 主题令牌守卫（npm run test:theme）
 ├── types/               # 类型定义
 │   └── index.ts             # 集中管理所有类型
-└── utils/               # 工具函数
+├── utils/               # 工具函数
     ├── url.ts               # URL 解析、页面判断
     ├── text.ts              # 文本清理、占位符判断
     ├── time.ts              # 时间格式化
     ├── math.ts              # 数学计算
     ├── clipboard.ts         # 剪贴板操作
     ├── storage.ts           # localStorage 安全读写
-    └── panel.ts             # 面板配置统一管理
+    ├── panel.ts             # 面板配置统一管理
+    ├── theme.ts             # 主题应用（写入 html[data-ouch-theme]）
+    └── userNotice.ts        # 顶部提示条（Shadow DOM）
 ```
 
 ## 开发规范
@@ -158,6 +162,15 @@ npm run build
 
 # 类型检查
 npx vue-tsc --noEmit
+
+# 代码检查
+npm run lint
+
+# 单元测试 + 主题令牌守卫
+npm run test
+
+# 产物自检（UserScript 头、版本号一致、gzip 体积）
+npm run verify:dist
 ```
 
 构建产物位于 `dist/ouchn-course-brusher-vue.user.js`。
@@ -199,6 +212,16 @@ URL 工具函数：
 - `getCourseName()` - 获取课程名称
 
 > **注意**：`/mod/*` 页面 URL 中的 `id` 是**模块 ID 而非课程 ID**。刷课页、侧边栏导航等场景必须用 `getCourseIdFromPage()`，绝不能直接取 URL 的 `id` 参数。
+
+### [src/styles/theme.css](src/styles/theme.css)（v2.2.6）
+
+面板统一设计令牌与共享组件类：
+- **令牌**：`--ouch-*` 共 28 个（主色 `--ouch-accent`/`--ouch-grad`、毛玻璃 `--ouch-glass-bg`/`--ouch-glass-border`/`--ouch-glass-blur`、表面 `--ouch-surface`/`--ouch-surface-2`、线条 `--ouch-line`/`--ouch-line-soft`、文字 `--ouch-text`/`--ouch-text-muted`/`--ouch-text-faint`、阴影 `--ouch-shadow-*`、圆角 `--ouch-radius-*`、语义色 `--ouch-ok`/`--ouch-warn`/`--ouch-danger`、缓动 `--ouch-ease`/`--ouch-ease-snap`）
+- **共享组件类**：`ouch-float-btn`、`ouch-panel`、`ouch-titlebar`、`ouch-btn-close`、`ouch-panel-body`、`ouch-card`、`ouch-section-title`、`ouch-progress-track`/`ouch-progress-fill`、`ouch-seg-group`/`ouch-seg-btn`、`ouch-switch`/`ouch-slider`、`ouch-btn`/`ouch-btn-danger`、`ouch-status`、`ouch-log`/`ouch-log-line`
+- **暗色优先级**：`html[data-ouch-theme="dark"]`（用户手选）> 系统 `prefers-color-scheme: dark` > 浅色
+- **作用域**：`src/bootstrap.ts` 会把构建内联的 CSS 复制进每个面板的 Shadow DOM，因此变量写在 `:root, :host`，面板内用 `:host-context` 读宿主属性
+
+> **约定**：组件内 `<style>` 只写布局（尺寸、间距、flex），配色/圆角/阴影/毛玻璃一律引用 `var(--ouch-*)`；新增令牌时 `src/styles/theme.spec.mjs` 会校验暗色分支是否覆盖到。
 
 ### [src/composables/useDraggablePanel.ts](src/composables/useDraggablePanel.ts)
 

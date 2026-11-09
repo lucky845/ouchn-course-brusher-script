@@ -9,6 +9,7 @@ import {
   removeStorage
 } from '../utils/storage'
 import { SETTINGS_KEY, ENABLED_KEY, SESSION_KEY, PANEL_POSITIONS_KEY } from './storageKeys'
+import { applyTheme } from '../utils/theme'
 
 export { SpeedMode }
 
@@ -19,7 +20,8 @@ const DEFAULT_SETTINGS: Settings = {
   videoPlaybackRate: 1,
   antiDetection: true,
   wakeLock: true,
-  muted: true
+  muted: true,
+  theme: 'auto'
 }
 
 export const SPEED_MODES: Record<SpeedMode, { videoCheck: number, pageWait: number }> = {
@@ -74,6 +76,7 @@ export class SettingsStoreService {
   save(newSettings: Partial<Settings>): void {
     this.settings = { ...this.settings, ...newSettings }
     writeStorage(SETTINGS_KEY, this.settings)
+    if (newSettings.theme !== undefined) applyTheme(this.settings.theme)
     this.listeners.forEach((listener) => {
       try {
         listener({ ...this.settings })
