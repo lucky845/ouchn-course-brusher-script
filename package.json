@@ -1,15 +1,16 @@
 {
     "name": "ouchn-course-brusher-vue",
-    "version": "2.2.5",
+    "version": "2.2.6",
     "type": "module",
     "scripts": {
         "dev": "vite",
         "build": "vite build",
         "build:prod": "vite build --mode production",
-        "lint": "eslint \"src/**/*.{ts,vue}\"",
-        "lint:fix": "eslint \"src/**/*.{ts,vue}\" --fix",
+        "lint": "eslint \"src/**/*.{ts,vue}\" vite.config.ts vitest.config.ts",
+        "lint:fix": "eslint \"src/**/*.{ts,vue}\" vite.config.ts vitest.config.ts --fix",
         "typecheck": "vue-tsc --noEmit",
-        "test": "vitest run"
+        "test": "vitest run",
+        "verify:dist": "node scripts/verify-dist.mjs"
     },
     "dependencies": {
         "vue": "^3.4.21"

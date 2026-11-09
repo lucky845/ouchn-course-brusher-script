@@ -157,7 +157,7 @@ import { courseProgressStore } from '../services/courseProgressStore'
 import { recordQuizSkip, resetQuizSkipGuard } from '../services/quizSkipGuard'
 import { useDraggablePanel } from '../composables/useDraggablePanel'
 import { getPanelConfig } from '../utils/panel'
-import { getCourseId, getModuleIdFromUrl, isQuizPage } from '../utils/url'
+import { getCourseIdFromPage, getModuleIdFromUrl, isQuizPage } from '../utils/url'
 import { formatDuration } from '../utils/time'
 import { showUserNotice } from '../utils/userNotice'
 
@@ -218,9 +218,13 @@ const speedModeOptions = [
 const playbackRateOptions = [1, 1.5, 2, 3]
 
 // ===== 工具 =====
+const MAX_LOG_LINES = 50
+
 function log(text: string): void {
   const d = new Date()
   const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
+  // 长时间刷课会累积上千条日志，只保留最近若干条
+  if (logs.length >= MAX_LOG_LINES) logs.splice(0, logs.length - MAX_LOG_LINES + 1)
   logs.push({ time: t, text })
   console.log('[刷课脚本]', text)
 }
@@ -345,7 +349,8 @@ function onToggleAntiDetection(): void {
 function onToggleMuted(): void {
   settingsStoreService.save({ muted: mutedOn.value })
   log(mutedOn.value ? '静音刷课已开启' : '静音刷课已关闭')
-  // 若正在播放，立即同步当前视频静音状态
+  // 同步静音偏好到视频服务，后续自动播放不再强制静音
+  videoManagerService.setMutedPreference(mutedOn.value)
   if (isRunning.value) {
     const v = videoManagerService.find()
     if (v) {
@@ -387,7 +392,8 @@ function startBrushing(opts?: { resetSession?: boolean }): void {
   log('=== 开始刷课 ===')
 
   // 初始化课程进度共享状态
-  const courseId = getCourseId()
+  // mod 页 URL 的 id 是模块 ID，必须从页面内容解析课程 ID，否则进度无法记录
+  const courseId = getCourseIdFromPage()
   const courseName = document.title.replace(/\s*[-_].*$/, '').trim() || '未知课程'
   const items = sidebarNavigatorService.getAllItems()
   if (courseId) {
@@ -757,6 +763,7 @@ onMounted(() => {
     wakeLockOn.value = settings.wakeLock
     antiDetectionOn.value = settings.antiDetection
     mutedOn.value = settings.muted
+    videoManagerService.setMutedPreference(settings.muted)
 
     // 从 session 恢复本次刷课计数（页面跳转后保持）
     const sessionData = settingsStoreService.sessionGet()

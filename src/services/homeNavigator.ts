@@ -45,7 +45,7 @@ export class HomeNavigatorService {
     // 判断是否为当前学期（只检查标题开头，避免误匹配）
     const isCurrent = headerText.startsWith('本学期') || headerText.startsWith('当前学期')
 
-    let semesterName = headerText || (isCurrent ? '本学期课程' : '其他学期')
+    const semesterName = headerText || (isCurrent ? '本学期课程' : '其他学期')
 
     // 查找该学期块内的课程项（严格限定在当前学期块内，避免跨学期混入）
     const courseListWrap = block.querySelector(':scope > .course-list-wrap')
@@ -177,7 +177,6 @@ export class HomeNavigatorService {
 
     return course
   }
-
 
 
   private extractCourseFromBody(body: HTMLElement): CourseInfo | null {

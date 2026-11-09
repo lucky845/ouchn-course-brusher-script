@@ -280,6 +280,7 @@ const currentReminders = computed(() => {
 
 // ===== 订阅进度变化 =====
 let unsubscribe: (()=> void) | null = null
+const otherUnsubscribes: Array<()=> void> = []
 
 function subscribeProgress(): void {
   unsubscribe = courseProgressStore.subscribe((data) => {
@@ -289,17 +290,23 @@ function subscribeProgress(): void {
 
 onMounted(() => {
   subscribeProgress()
-  bookmarkStore.subscribe((data) => {
+  otherUnsubscribes.push(bookmarkStore.subscribe((data) => {
     bookmarks.value = data.bookmarks
-  })
-  studyReminderService.subscribe((data) => {
+  }))
+  otherUnsubscribes.push(studyReminderService.subscribe((data) => {
     notifications.value = data.notifications.slice(0, 20)
     reminders.value = data.reminders
-  })
+  }))
 })
 
 onUnmounted(() => {
   if (unsubscribe) unsubscribe()
+  // subscribe 会在注册时立即回调一次，不回退订阅就会在每次面板重建后留下常驻监听
+  while (otherUnsubscribes.length) {
+    try {
+      otherUnsubscribes.pop()?.()
+    } catch {}
+  }
 })
 
 // ===== 方法 =====
@@ -329,7 +336,10 @@ function refreshCourse(): void {
       }
     })
     // 将课程详情页的进度状态同步到 courseProgressStore，供侧边栏状态注入使用
-    courseProgressStore.syncFromCourseInfo(courseInfo.value)
+    // 章节为空说明页面还没渲染完，此时同步会把已有的完成记录当成「没有完成」
+    if (courseInfo.value.chapters.length > 0) {
+      courseProgressStore.syncFromCourseInfo(courseInfo.value)
+    }
   }
 }
 

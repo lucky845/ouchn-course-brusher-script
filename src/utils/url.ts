@@ -137,6 +137,70 @@ export function getCourseId(): string | null {
 }
 
 /**
+ * 从 course/view.php 类型的 URL 中提取课程 ID
+ * 注意：只识别 course/view.php?id=XXX 中的 id，不用于其他页面
+ */
+export function extractCourseIdFromCourseUrl(url: string): string | null {
+  if (!url || !url.includes('course/view.php')) return null
+  const id = parseQueryParams(url)['id']
+  return id && /^\d+$/.test(id) ? id : null
+}
+
+/**
+ * 从当前页面解析课程 ID（适用于任何课程内页面，包括 /mod/xxx 活动页）
+ *
+ * ⚠️ 不能直接取 URL 的 id 参数：mod 页面的 id 是模块 ID 而非课程 ID。
+ * 依次尝试 面包屑 → 页面内课程链接 → body class → 隐藏输入框 → 页面 HTML。
+ *
+ * @returns 课程 ID，解析失败返回 null
+ */
+export function getCourseIdFromPage(): string | null {
+  if (typeof document === 'undefined') return null
+
+  // 1. 面包屑（Moodle 标准：首页 > 课程名 > 活动名）
+  const breadcrumbSelectors = [
+    '.breadcrumb a[href*="course/view.php"]',
+    '.breadcrumb-item a[href*="course/view.php"]',
+    '.breadcrumb a[href*="/course/"]',
+    'nav[aria-label*="breadcrumb"] a[href*="course/view.php"]',
+    'ul.breadcrumb a[href*="course/view.php"]',
+    'ol.breadcrumb a[href*="course/view.php"]'
+  ]
+  for (const selector of breadcrumbSelectors) {
+    const links = document.querySelectorAll<HTMLAnchorElement>(selector)
+    for (let i = 0; i < links.length; i++) {
+      const id = extractCourseIdFromCourseUrl(links[i].href)
+      if (id) return id
+    }
+  }
+
+  // 2. 页面内任意课程链接（侧边栏 / 导航块）
+  const allCourseLinks = document.querySelectorAll<HTMLAnchorElement>('a[href*="course/view.php"]')
+  for (let i = 0; i < allCourseLinks.length; i++) {
+    const id = extractCourseIdFromCourseUrl(allCourseLinks[i].href)
+    if (id) return id
+  }
+
+  // 3. body class（Moodle 会给 body 加 course-<id>）
+  if (document.body) {
+    const match = document.body.className.match(/course-(\d+)/)
+    if (match) return match[1]
+  }
+
+  // 4. 隐藏输入框
+  const courseMeta = document.querySelector<HTMLInputElement>('input[name="courseid"], input[name="course"]')
+  if (courseMeta && /^\d+$/.test(courseMeta.value)) return courseMeta.value
+
+  // 5. 页面 HTML 兜底
+  try {
+    const htmlMatch = document.documentElement.innerHTML.match(/course\/view\.php\?id=(\d+)/)
+    if (htmlMatch) return htmlMatch[1]
+  } catch {}
+
+  return null
+}
+
+/**
  * 获取课程详情页的课程名称
  * @returns 课程名称，如果获取失败则返回空字符串
  */
