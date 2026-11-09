@@ -6,9 +6,14 @@
   >
     <!-- 悬浮按钮 -->
     <div
-      class="course-btn"
+      class="course-btn ouch-float-btn"
+      role="button"
+      tabindex="0"
+      :aria-expanded="isExpanded"
+      aria-label="课程助手"
       @mousedown.prevent="onDragStart"
       @click.stop="togglePanel"
+      @keydown.enter.prevent="togglePanel"
     >
       <span class="btn-icon">📖</span>
       <span v-if="unfinishedChapters > 0 && activeTab === 'chapters'" class="badge">{{ unfinishedChapters }}</span>
@@ -16,11 +21,11 @@
     </div>
 
     <!-- 面板内容 -->
-    <div v-show="isExpanded" class="course-panel" @click.stop>
+    <div v-show="isExpanded" class="course-panel ouch-panel" @click.stop>
       <!-- 头部 -->
-      <div class="panel-header">
+      <div class="panel-header ouch-titlebar">
         <span class="panel-title">📚 {{ courseInfo?.courseName || '课程助手' }}</span>
-        <button class="close-btn" @click="isExpanded = false">✕</button>
+        <button class="close-btn ouch-btn-close" @click="isExpanded = false">✕</button>
       </div>
 
       <!-- 标签页 -->
@@ -497,8 +502,8 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   cursor: grab;
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.35);
+  transition: transform 0.25s var(--ouch-ease), box-shadow 0.25s var(--ouch-ease), filter 0.25s var(--ouch-ease);
   position: relative;
 }
 
@@ -517,7 +522,7 @@ onMounted(() => {
 
 .course-btn:hover {
   transform: scale(1.12);
-  box-shadow: 0 10px 30px rgba(16, 185, 129, 0.6);
+  box-shadow: 0 12px 32px rgba(16, 185, 129, 0.45);
 }
 
 .course-btn:hover::before {
@@ -538,7 +543,7 @@ onMounted(() => {
   top: -10px;
   right: -10px;
   background: linear-gradient(135deg, #ff4757 0%, #ff6b7a 100%);
-  color: white;
+  color: var(--ouch-on-accent);
   font-size: 11px;
   font-weight: 700;
   min-width: 22px;
@@ -548,7 +553,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   padding: 0 6px;
-  box-shadow: 0 4px 10px rgba(255, 71, 87, 0.6);
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.5);
 }
 
 /* 面板样式 */
@@ -558,9 +563,9 @@ onMounted(() => {
   top: 70px;
   width: 360px;
   max-height: 70vh;
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  color: var(--ouch-text);
+  border-radius: var(--ouch-radius-panel);
+  box-shadow: var(--ouch-shadow-panel);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -575,8 +580,8 @@ onMounted(() => {
 /* 标签页 */
 .tab-nav {
   display: flex;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e8e8e8;
+  background: var(--ouch-surface-2);
+  border-bottom: 1px solid var(--ouch-line);
   flex-shrink: 0;
 }
 
@@ -595,12 +600,12 @@ onMounted(() => {
 }
 
 .tab-btn:hover {
-  background: #e8e8e8;
+  background: var(--ouch-surface-2);
 }
 
 .tab-btn.active {
-  border-bottom-color: #10b981;
-  background: #ffffff;
+  border-bottom-color: var(--ouch-ok);
+  background: var(--ouch-surface);
 }
 
 .tab-icon {
@@ -609,11 +614,11 @@ onMounted(() => {
 
 .tab-label {
   font-size: 10px;
-  color: #666;
+  color: var(--ouch-text-muted);
 }
 
 .tab-btn.active .tab-label {
-  color: #10b981;
+  color: var(--ouch-ok);
   font-weight: 600;
 }
 
@@ -630,28 +635,28 @@ onMounted(() => {
 }
 
 .tab-content::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--ouch-surface-2);
 }
 
 .tab-content::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--ouch-surface-2);
   border-radius: 3px;
 }
 
 /* 进度概览 */
 .progress-overview {
   padding: 14px 18px;
-  background: linear-gradient(135deg, #f0fdf4 0%, #ecfeff 100%);
-  border-bottom: 1px solid #e0e7eb;
+  background: var(--ouch-surface-2);
+  border-bottom: 1px solid var(--ouch-line);
 }
 
 .progress-bar {
   width: 100%;
   height: 10px;
-  background: #d1d5db;
+  background: var(--ouch-surface-2);
   border-radius: 6px;
   overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .progress-fill {
@@ -666,7 +671,7 @@ onMounted(() => {
   margin-top: 8px;
   font-size: 13px;
   font-weight: 700;
-  color: #059669;
+  color: var(--ouch-ok);
   text-align: right;
 }
 
@@ -679,27 +684,27 @@ onMounted(() => {
 
 .stat-item {
   font-size: 11px;
-  color: #666;
+  color: var(--ouch-text-muted);
   padding: 2px 8px;
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--ouch-surface);
   border-radius: 4px;
 }
 
 .stat-item.completed {
-  color: #059669;
-  background: rgba(16, 185, 129, 0.1);
+  color: var(--ouch-ok);
+  background: rgba(16, 185, 129, 0.14);
 }
 
 .stat-item.pending {
-  color: #d97706;
-  background: rgba(217, 119, 6, 0.1);
+  color: var(--ouch-warn);
+  background: rgba(217, 119, 6, 0.14);
 }
 
 /* 课程完成状态 */
 .course-completed {
   margin-top: 10px;
   padding: 10px 12px;
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  background: rgba(245, 158, 11, 0.16);
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -726,7 +731,7 @@ onMounted(() => {
 .completed-text {
   font-size: 14px;
   font-weight: 700;
-  color: #92400e;
+  color: var(--ouch-warn);
 }
 
 /* 刷课状态 */
@@ -735,7 +740,7 @@ onMounted(() => {
   padding: 10px 12px;
   background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   border-radius: 8px;
-  color: white;
+  color: var(--ouch-on-accent);
 }
 
 .brushing-indicator {
@@ -778,14 +783,14 @@ onMounted(() => {
 .brushing-bar {
   flex: 1;
   height: 6px;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.34);
   border-radius: 3px;
   overflow: hidden;
 }
 
 .brushing-fill {
   height: 100%;
-  background: white;
+  background: var(--ouch-surface);
   border-radius: 3px;
   transition: width 0.3s ease;
 }
@@ -802,53 +807,53 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   padding: 10px 18px;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--ouch-line);
 }
 
 .action-btn {
   flex: 1;
   padding: 6px 8px;
-  background: #e5e7eb;
+  background: var(--ouch-surface-2);
   border: none;
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #374151;
+  color: var(--ouch-text);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .action-btn:hover {
-  background: #d1d5db;
-  color: #111827;
+  background: var(--ouch-surface-2);
+  color: var(--ouch-text);
 }
 
 .action-btn.expand-btn.active {
-  background: #10b981;
-  color: white;
+  background: var(--ouch-ok);
+  color: var(--ouch-on-accent);
 }
 
 .action-btn.collapse-btn.active {
-  background: #f59e0b;
-  color: white;
+  background: var(--ouch-warn);
+  color: var(--ouch-on-accent);
 }
 
 .action-btn.refresh {
-  background: #ecfdf5;
-  color: #059669;
+  background: var(--ouch-surface-2);
+  color: var(--ouch-ok);
 }
 
 .action-btn.refresh:hover {
-  background: #d1fae5;
+  background: var(--ouch-surface-2);
 }
 
 .action-btn.primary {
-  background: #10b981;
-  color: white;
+  background: var(--ouch-ok);
+  color: var(--ouch-on-accent);
 }
 
 .action-btn.primary:hover {
-  background: #059669;
+  background: var(--ouch-ok);
 }
 
 /* 章节列表 */
@@ -861,24 +866,24 @@ onMounted(() => {
   margin-bottom: 8px;
   border-radius: 10px;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
-  background: white;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--ouch-line);
+  background: var(--ouch-surface);
+  box-shadow: var(--ouch-shadow-card);
   transition: box-shadow 0.2s, transform 0.2s;
 }
 
 .chapter-item:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--ouch-shadow-panel);
 }
 
 .chapter-item.completed {
-  border-color: #bbf7d0;
-  background: linear-gradient(to bottom, #f0fdf4, #ffffff);
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.1);
 }
 
 .chapter-item.in-progress {
-  border-color: #fde68a;
-  background: linear-gradient(to bottom, #fffbeb, #ffffff);
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.1);
 }
 
 .chapter-header {
@@ -886,30 +891,30 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  background: #f9fafb;
+  background: var(--ouch-surface-2);
   cursor: pointer;
   user-select: none;
   transition: background 0.2s;
 }
 
 .chapter-item.completed .chapter-header {
-  background: #d1fae5;
+  background: var(--ouch-surface-2);
 }
 
 .chapter-item.in-progress .chapter-header {
-  background: #fef3c7;
+  background: rgba(245, 158, 11, 0.16);
 }
 
 .chapter-header:hover {
-  background: #f3f4f6;
+  background: var(--ouch-surface-2);
 }
 
 .chapter-item.completed .chapter-header:hover {
-  background: #a7f3d0;
+  background: rgba(16, 185, 129, 0.35);
 }
 
 .chapter-item.in-progress .chapter-header:hover {
-  background: #fde68a;
+  background: rgba(245, 158, 11, 0.35);
 }
 
 .status-icon {
@@ -921,43 +926,43 @@ onMounted(() => {
   flex: 1;
   font-size: 13px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--ouch-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .chapter-item.completed .chapter-name {
-  color: #065f46;
+  color: var(--ouch-ok);
 }
 
 .chapter-item.in-progress .chapter-name {
-  color: #92400e;
+  color: var(--ouch-warn);
 }
 
 .chapter-progress {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--ouch-text-muted);
   flex-shrink: 0;
   padding: 3px 8px;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--ouch-surface-2);
   border-radius: 10px;
   font-weight: 600;
 }
 
 .chapter-item.completed .chapter-progress {
-  background: rgba(5, 150, 105, 0.15);
-  color: #047857;
+  background: rgba(16, 185, 129, 0.16);
+  color: var(--ouch-ok);
 }
 
 .chapter-item.in-progress .chapter-progress {
-  background: rgba(217, 119, 6, 0.15);
-  color: #b45309;
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--ouch-warn);
 }
 
 .chapter-arrow {
   font-size: 10px;
-  color: #6b7280;
+  color: var(--ouch-text-muted);
   transition: transform 0.2s;
   flex-shrink: 0;
 }
@@ -968,9 +973,9 @@ onMounted(() => {
 
 /* 活动列表 */
 .chapter-activities {
-  background: #ffffff;
+  background: var(--ouch-surface);
   padding: 4px 10px 4px 40px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--ouch-line-soft);
 }
 
 .activity-item {
@@ -978,7 +983,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--ouch-line-soft);
   cursor: pointer;
   transition: background 0.15s;
   border-radius: 6px;
@@ -990,7 +995,7 @@ onMounted(() => {
 }
 
 .activity-item:hover {
-  background: #f0f9ff;
+  background: var(--ouch-surface-2);
   transform: translateX(2px);
 }
 
@@ -999,7 +1004,7 @@ onMounted(() => {
 }
 
 .activity-item.completed:hover {
-  background: #f0fdf4;
+  background: rgba(16, 185, 129, 0.1);
 }
 
 .activity-icon {
@@ -1012,7 +1017,7 @@ onMounted(() => {
 .activity-name {
   flex: 1;
   font-size: 12px;
-  color: #374151;
+  color: var(--ouch-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1021,15 +1026,15 @@ onMounted(() => {
 
 .activity-item.completed .activity-name {
   text-decoration: line-through;
-  color: #9ca3af;
+  color: var(--ouch-text-faint);
 }
 
 .activity-type {
   font-size: 9px;
-  color: #9ca3af;
+  color: var(--ouch-text-faint);
   flex-shrink: 0;
   padding: 2px 6px;
-  background: #f3f4f6;
+  background: var(--ouch-surface-2);
   border-radius: 4px;
   text-transform: uppercase;
   font-weight: 600;
@@ -1038,7 +1043,7 @@ onMounted(() => {
 .no-activities {
   padding: 10px;
   font-size: 11px;
-  color: #9ca3af;
+  color: var(--ouch-text-faint);
   text-align: center;
   font-style: italic;
 }
@@ -1046,7 +1051,7 @@ onMounted(() => {
 .no-data {
   padding: 40px 20px;
   text-align: center;
-  color: #6b7280;
+  color: var(--ouch-text-muted);
 }
 
 .no-data p {
@@ -1055,7 +1060,7 @@ onMounted(() => {
 
 .no-data .hint {
   font-size: 11px;
-  color: #9ca3af;
+  color: var(--ouch-text-faint);
   font-style: italic;
 }
 
@@ -1075,7 +1080,7 @@ onMounted(() => {
 }
 
 .snapping {
-  transition: transform 0.26s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition: transform 0.26s var(--ouch-ease-snap);
 }
 
 @media (max-width: 420px) {

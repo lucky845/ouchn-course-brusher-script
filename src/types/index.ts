@@ -62,7 +62,12 @@ export interface Settings {
   wakeLock: boolean
   /** 刷课视频静音播放（避免刷课时出声打扰） */
   muted: boolean
+  /** 面板主题：auto 跟随系统 / light 浅色 / dark 深色 */
+  theme: ThemeMode
 }
+
+/** 面板主题模式 */
+export type ThemeMode = 'auto' | 'light' | 'dark'
 
 export interface SessionStats {
   startTime: number

@@ -5,21 +5,26 @@
     :style="{ transform: `translate(${position.x}px, ${position.y}px)` }"
   >
     <div
-      class="home-btn"
+      class="home-btn ouch-float-btn"
+      role="button"
+      tabindex="0"
+      :aria-expanded="isExpanded"
+      aria-label="学习助手"
       @mousedown.prevent="onDragStart"
       @click.stop="togglePanel"
+      @keydown.enter.prevent="togglePanel"
     >
       <span class="btn-icon">🏠</span>
       <span v-if="pendingCount > 0" class="badge">{{ pendingCount }}</span>
     </div>
 
-    <div v-show="isExpanded" class="home-panel" @click.stop>
-      <div class="panel-header">
+    <div v-show="isExpanded" class="home-panel ouch-panel" @click.stop>
+      <div class="panel-header ouch-titlebar">
         <span class="panel-title">📊 学习助手</span>
-        <button class="close-btn" @click="isExpanded = false">✕</button>
+        <button class="close-btn ouch-btn-close" @click="isExpanded = false">✕</button>
       </div>
 
-      <div class="panel-body">
+      <div class="panel-body ouch-panel-body">
         <div class="scrollable-content">
           <div class="stats-card">
             <div class="stat-item">
@@ -278,13 +283,13 @@ onUnmounted(() => {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--ouch-grad);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: grab;
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.45);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--ouch-shadow-float);
+  transition: transform 0.25s var(--ouch-ease), box-shadow 0.25s var(--ouch-ease), filter 0.25s var(--ouch-ease);
   position: relative;
 }
 
@@ -303,7 +308,7 @@ onUnmounted(() => {
 
 .home-btn:hover {
   transform: scale(1.12);
-  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.6);
+  box-shadow: var(--ouch-shadow-float);
 }
 
 .home-btn:hover::before {
@@ -324,7 +329,7 @@ onUnmounted(() => {
   top: -10px;
   right: -10px;
   background: linear-gradient(135deg, #ff4757 0%, #ff6b7a 100%);
-  color: white;
+  color: var(--ouch-on-accent);
   font-size: 11px;
   font-weight: 700;
   min-width: 22px;
@@ -343,9 +348,9 @@ onUnmounted(() => {
   top: 70px;
   width: 380px;
   max-height: 70vh;
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  color: var(--ouch-text);
+  border-radius: var(--ouch-radius-panel);
+  box-shadow: var(--ouch-shadow-panel);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -368,8 +373,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--ouch-grad);
+  color: var(--ouch-on-accent);
   flex-shrink: 0;
 }
 
@@ -379,9 +384,9 @@ onUnmounted(() => {
 }
 
 .close-btn {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.18);
   border: none;
-  color: white;
+  color: var(--ouch-on-accent);
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -391,7 +396,7 @@ onUnmounted(() => {
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.34);
 }
 
 .panel-body {
@@ -413,24 +418,24 @@ onUnmounted(() => {
 }
 
 .scrollable-content::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--ouch-surface-2);
   border-radius: 3px;
 }
 
 .scrollable-content::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--ouch-surface-2);
   border-radius: 3px;
 }
 
 .scrollable-content::-webkit-scrollbar-thumb:hover {
-  background: #a1a1a1;
+  background: var(--ouch-text-faint);
 }
 
 .stats-card {
   display: flex;
   align-items: center;
   justify-content: space-around;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background: var(--ouch-surface-2);
   border-radius: 12px;
   padding: 14px;
   margin: 12px 12px 14px 12px;
@@ -446,25 +451,25 @@ onUnmounted(() => {
 .stat-value {
   font-size: 18px;
   font-weight: 700;
-  color: #667eea;
+  color: var(--ouch-accent);
 }
 
 .stat-label {
   font-size: 10px;
-  color: #666;
+  color: var(--ouch-text-muted);
   margin-top: 2px;
 }
 
 .stat-divider {
   width: 1px;
   height: 28px;
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--ouch-line);
 }
 
 .semester-section {
   margin-bottom: 12px;
   border-radius: 10px;
-  background: #f8f9fa;
+  background: var(--ouch-surface-2);
   margin: 0 12px 12px 12px;
 }
 
@@ -473,7 +478,7 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 10px 14px;
-  background: #f8f9fa;
+  background: var(--ouch-surface-2);
   cursor: pointer;
   user-select: none;
   transition: background 0.2s;
@@ -483,7 +488,7 @@ onUnmounted(() => {
 }
 
 .semester-header:hover {
-  background: #eef0f3;
+  background: var(--ouch-surface-2);
 }
 
 .semester-header-left {
@@ -494,7 +499,7 @@ onUnmounted(() => {
 
 .semester-arrow {
   font-size: 10px;
-  color: #666;
+  color: var(--ouch-text-muted);
   transition: transform 0.2s;
   display: inline-block;
 }
@@ -506,23 +511,23 @@ onUnmounted(() => {
 .semester-name {
   font-size: 13px;
   font-weight: 600;
-  color: #333;
+  color: var(--ouch-text);
 }
 
 .current-tag {
   display: inline-block;
   margin-left: 6px;
   padding: 1px 5px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--ouch-grad);
+  color: var(--ouch-on-accent);
   font-size: 9px;
   border-radius: 4px;
   font-weight: 500;
 }
 
 .semester-count {
-  background: #e0e0e0;
-  color: #666;
+  background: var(--ouch-surface-2);
+  color: var(--ouch-text-muted);
   font-size: 10px;
   font-weight: 600;
   min-width: 18px;
@@ -542,17 +547,17 @@ onUnmounted(() => {
 }
 
 .course-item {
-  background: #ffffff;
+  background: var(--ouch-surface);
   border-radius: 10px;
   padding: 10px;
   display: flex;
   gap: 12px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--ouch-shadow-card);
   transition: box-shadow 0.2s;
 }
 
 .course-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--ouch-shadow-panel);
 }
 
 .course-cover {
@@ -561,7 +566,7 @@ onUnmounted(() => {
   height: 50px;
   border-radius: 6px;
   overflow: hidden;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--ouch-grad);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -575,7 +580,7 @@ onUnmounted(() => {
 
 .course-cover-placeholder {
   font-size: 22px;
-  color: white;
+  color: var(--ouch-on-accent);
 }
 
 .course-content {
@@ -603,7 +608,7 @@ onUnmounted(() => {
 .course-name {
   font-size: 12px;
   font-weight: 600;
-  color: #333;
+  color: var(--ouch-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -615,8 +620,8 @@ onUnmounted(() => {
   justify-content: center;
   width: 16px;
   height: 16px;
-  background: #4caf50;
-  color: white;
+  background: var(--ouch-ok);
+  color: var(--ouch-on-accent);
   font-size: 10px;
   font-weight: 600;
   border-radius: 50%;
@@ -630,11 +635,11 @@ onUnmounted(() => {
 .progress-text {
   font-size: 12px;
   font-weight: 600;
-  color: #667eea;
+  color: var(--ouch-accent);
 }
 
 .progress-text.completed {
-  color: #4caf50;
+  color: var(--ouch-ok);
 }
 
 .course-progress {
@@ -644,21 +649,21 @@ onUnmounted(() => {
 .progress-bar {
   width: 100%;
   height: 4px;
-  background: #e8e8e8;
+  background: var(--ouch-surface-2);
   border-radius: 2px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: var(--ouch-grad);
   border-radius: 2px;
   transition: width 0.3s ease;
   min-width: 0;
 }
 
 .progress-fill.completed {
-  background: linear-gradient(90deg, #4caf50 0%, #66bb6a 100%);
+  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
 }
 
 .course-footer {
@@ -678,17 +683,17 @@ onUnmounted(() => {
 
 .meta-item {
   font-size: 10px;
-  color: #888;
+  color: var(--ouch-text-faint);
 }
 
 .meta-item.homework {
-  color: #ff9800;
+  color: var(--ouch-warn);
   font-weight: 500;
 }
 
 .action-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--ouch-grad);
+  color: var(--ouch-on-accent);
   border: none;
   border-radius: 4px;
   padding: 2px 6px;
@@ -713,7 +718,7 @@ onUnmounted(() => {
   text-align: center;
   padding: 12px;
   font-size: 11px;
-  color: #999;
+  color: var(--ouch-text-faint);
 }
 
 .quick-actions {
@@ -721,13 +726,13 @@ onUnmounted(() => {
   gap: 8px;
   padding: 12px 12px 4px 12px;
   margin-top: auto;
-  border-top: 1px solid #e8e8e8;
+  border-top: 1px solid var(--ouch-line);
   flex-shrink: 0;
 }
 
 .quick-btn {
   flex: 1;
-  background: #f0f0f0;
+  background: var(--ouch-surface-2);
   border: none;
   border-radius: 8px;
   padding: 10px;
@@ -737,7 +742,7 @@ onUnmounted(() => {
 }
 
 .quick-btn:hover {
-  background: #e0e0e0;
+  background: var(--ouch-surface-2);
 }
 
 .dragging {
@@ -745,7 +750,7 @@ onUnmounted(() => {
 }
 
 .snapping {
-  transition: transform 0.26s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition: transform 0.26s var(--ouch-ease-snap);
 }
 
 @media (max-width: 420px) {

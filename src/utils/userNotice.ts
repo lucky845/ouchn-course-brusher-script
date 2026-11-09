@@ -20,10 +20,11 @@ const NOTICE_STYLE = `
   z-index: 2147483646;
   max-width: min(92vw, 560px);
   padding: 12px 20px;
-  border-radius: 10px;
+  border-radius: 14px;
   font: 500 14px/1.5 -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: #fff;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.22);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -33,9 +34,9 @@ const NOTICE_STYLE = `
   pointer-events: auto;
   letter-spacing: 0.3px;
 }
-.notice.type-info { background: linear-gradient(135deg, #667eea, #764ba2); }
-.notice.type-warn { background: linear-gradient(135deg, #f6a523, #e67e22); }
-.notice.type-error { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+.notice.type-info { background: linear-gradient(135deg, rgba(102, 126, 234, 0.94), rgba(118, 75, 162, 0.94)); }
+.notice.type-warn { background: linear-gradient(135deg, rgba(246, 165, 35, 0.95), rgba(230, 126, 34, 0.95)); }
+.notice.type-error { background: linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(192, 57, 43, 0.95)); }
 .notice-leave { animation: notice-out 0.3s ease forwards; }
 @keyframes notice-in {
   from { opacity: 0; transform: translateX(-50%) translateY(-12px); }

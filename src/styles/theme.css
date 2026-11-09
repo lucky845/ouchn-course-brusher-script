@@ -1,0 +1,390 @@
+/*
+ * 面板统一设计令牌（毛玻璃 + 暗色）
+ *
+ * 为什么是全局样式且靠变量覆盖：
+ * bootstrap.ts 会把构建内联的 CSS 复制进各面板的 Shadow DOM，
+ * 所以这里用跨主题不变的类名前缀（ouch-*）承载视觉，组件内只保留布局。
+ * 暗色不写整套重复样式，只覆盖变量；用户手动选择优先于系统偏好。
+ */
+
+:root,
+:host {
+  --ouch-accent: #667eea;
+  --ouch-accent-2: #764ba2;
+  --ouch-grad: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --ouch-on-accent: #fff;
+
+  --ouch-glass-bg: rgba(255, 255, 255, 0.72);
+  --ouch-glass-bg-strong: rgba(255, 255, 255, 0.88);
+  --ouch-glass-border: rgba(255, 255, 255, 0.65);
+  --ouch-glass-blur: blur(18px) saturate(180%);
+
+  --ouch-surface: rgba(255, 255, 255, 0.66);
+  --ouch-surface-2: rgba(243, 244, 246, 0.7);
+  --ouch-line: rgba(0, 0, 0, 0.08);
+  --ouch-line-soft: rgba(0, 0, 0, 0.05);
+  --ouch-hover: rgba(102, 126, 234, 0.1);
+
+  --ouch-text: #1f2430;
+  --ouch-text-muted: #5b6472;
+  --ouch-text-faint: #8b93a1;
+
+  --ouch-shadow-float: 0 10px 30px rgba(60, 70, 120, 0.28);
+  --ouch-shadow-panel: 0 18px 48px rgba(30, 36, 60, 0.22), 0 2px 8px rgba(30, 36, 60, 0.08);
+  --ouch-shadow-card: 0 2px 8px rgba(30, 36, 60, 0.06);
+
+  --ouch-radius-btn: 50%;
+  --ouch-radius-panel: 18px;
+  --ouch-radius-card: 14px;
+  --ouch-radius-pill: 999px;
+
+  --ouch-ok: #10b981;
+  --ouch-warn: #f59e0b;
+  --ouch-danger: #ef4444;
+
+  --ouch-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ouch-ease-snap: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* 暗色：跟随系统 + 用户手动 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-ouch-theme='light']),
+  :host-context(:root:not([data-ouch-theme='light'])) {
+    --ouch-glass-bg: rgba(26, 30, 42, 0.72);
+    --ouch-glass-bg-strong: rgba(30, 34, 48, 0.9);
+    --ouch-glass-border: rgba(255, 255, 255, 0.1);
+    --ouch-surface: rgba(255, 255, 255, 0.06);
+    --ouch-surface-2: rgba(255, 255, 255, 0.08);
+    --ouch-line: rgba(255, 255, 255, 0.1);
+    --ouch-line-soft: rgba(255, 255, 255, 0.06);
+    --ouch-hover: rgba(124, 140, 255, 0.16);
+    --ouch-text: #e8ebf3;
+    --ouch-text-muted: #a7b0c0;
+    --ouch-text-faint: #7a8496;
+    --ouch-shadow-float: 0 10px 30px rgba(0, 0, 0, 0.5);
+    --ouch-shadow-panel: 0 18px 48px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3);
+    --ouch-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+}
+
+:root[data-ouch-theme='dark'],
+:host-context(:root[data-ouch-theme='dark']) {
+  --ouch-glass-bg: rgba(26, 30, 42, 0.72);
+  --ouch-glass-bg-strong: rgba(30, 34, 48, 0.9);
+  --ouch-glass-border: rgba(255, 255, 255, 0.1);
+  --ouch-surface: rgba(255, 255, 255, 0.06);
+  --ouch-surface-2: rgba(255, 255, 255, 0.08);
+  --ouch-line: rgba(255, 255, 255, 0.1);
+  --ouch-line-soft: rgba(255, 255, 255, 0.06);
+  --ouch-hover: rgba(124, 140, 255, 0.16);
+  --ouch-text: #e8ebf3;
+  --ouch-text-muted: #a7b0c0;
+  --ouch-text-faint: #7a8496;
+  --ouch-shadow-float: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --ouch-shadow-panel: 0 18px 48px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --ouch-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* ---------- 悬浮球 ---------- */
+
+.ouch-float-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--ouch-radius-btn);
+  background: var(--ouch-grad);
+  box-shadow: var(--ouch-shadow-float);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.25s var(--ouch-ease), box-shadow 0.25s var(--ouch-ease), filter 0.25s var(--ouch-ease);
+}
+
+.ouch-float-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 50%, rgba(255, 255, 255, 0.06) 100%);
+  opacity: 0;
+  transition: opacity 0.25s var(--ouch-ease);
+}
+
+.ouch-float-btn:hover {
+  transform: scale(1.08);
+  filter: brightness(1.05);
+}
+
+.ouch-float-btn:hover::before {
+  opacity: 1;
+}
+
+.ouch-float-btn:active {
+  transform: scale(0.96);
+}
+
+.ouch-float-btn:focus-visible,
+.ouch-panel :focus-visible {
+  outline: 2px solid var(--ouch-accent);
+  outline-offset: 2px;
+}
+
+.ouch-float-btn:focus-visible {
+  outline-color: #fff;
+}
+
+.ouch-titlebar {
+  background: var(--ouch-grad);
+  color: var(--ouch-on-accent);
+  padding: 13px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.ouch-titlebar .ouch-btn-close {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--ouch-radius-btn);
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--ouch-on-accent);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s var(--ouch-ease);
+}
+
+.ouch-titlebar .ouch-btn-close:hover {
+  background: rgba(255, 255, 255, 0.34);
+}
+
+/* ---------- 面板容器 ---------- */
+
+.ouch-panel {
+  background: var(--ouch-glass-bg);
+  -webkit-backdrop-filter: var(--ouch-glass-blur);
+  backdrop-filter: var(--ouch-glass-blur);
+  border: 1px solid var(--ouch-glass-border);
+  border-radius: var(--ouch-radius-panel);
+  box-shadow: var(--ouch-shadow-panel);
+  color: var(--ouch-text);
+  overflow: hidden;
+}
+
+/* 不支持 backdrop-filter 的环境退回不透明底色，保证可读性 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .ouch-panel {
+    background: var(--ouch-glass-bg-strong);
+  }
+}
+
+.ouch-panel-body {
+  background: transparent;
+  color: var(--ouch-text);
+}
+
+/* ---------- 卡片 / 分区 ---------- */
+
+.ouch-card {
+  background: var(--ouch-surface);
+  border: 1px solid var(--ouch-line-soft);
+  border-radius: var(--ouch-radius-card);
+  box-shadow: var(--ouch-shadow-card);
+  padding: 12px 14px;
+  color: var(--ouch-text);
+}
+
+.ouch-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ouch-text-muted);
+  margin-bottom: 10px;
+}
+
+/* ---------- 进度条 ---------- */
+
+.ouch-progress-track {
+  height: 8px;
+  border-radius: var(--ouch-radius-pill);
+  background: var(--ouch-surface-2);
+  overflow: hidden;
+}
+
+.ouch-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ouch-grad);
+  transition: width 0.4s var(--ouch-ease);
+}
+
+/* ---------- 分段控件 ---------- */
+
+.ouch-seg-group {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--ouch-radius-card);
+  background: var(--ouch-surface-2);
+}
+
+.ouch-seg-btn {
+  flex: 1;
+  min-height: 32px;
+  padding: 7px 6px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ouch-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s var(--ouch-ease), color 0.2s var(--ouch-ease);
+}
+
+.ouch-seg-btn:hover {
+  background: var(--ouch-hover);
+  color: var(--ouch-accent);
+}
+
+.ouch-seg-btn.active {
+  background: var(--ouch-glass-bg-strong);
+  color: var(--ouch-accent);
+  box-shadow: var(--ouch-shadow-card);
+}
+
+/* ---------- 开关 ---------- */
+
+.ouch-switch {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 26px;
+  flex: none;
+}
+
+.ouch-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.ouch-slider {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--ouch-radius-pill);
+  background: var(--ouch-surface-2);
+  border: 1px solid var(--ouch-line-soft);
+  cursor: pointer;
+  transition: background 0.25s var(--ouch-ease), border-color 0.25s var(--ouch-ease);
+}
+
+.ouch-slider::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  transition: transform 0.25s var(--ouch-ease);
+}
+
+.ouch-switch input:checked + .ouch-slider {
+  background: var(--ouch-grad);
+  border-color: transparent;
+}
+
+.ouch-switch input:checked + .ouch-slider::before {
+  transform: translateX(20px);
+}
+
+.ouch-switch input:focus-visible + .ouch-slider {
+  outline: 2px solid var(--ouch-accent);
+  outline-offset: 2px;
+}
+
+/* ---------- 按钮 ---------- */
+
+.ouch-btn {
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 11px 14px;
+  cursor: pointer;
+  color: var(--ouch-on-accent);
+  background: var(--ouch-grad);
+  transition: transform 0.15s var(--ouch-ease), box-shadow 0.2s var(--ouch-ease), opacity 0.2s var(--ouch-ease);
+}
+
+.ouch-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.35);
+}
+
+.ouch-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.ouch-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ouch-btn-danger {
+  background: var(--ouch-danger);
+}
+
+.ouch-btn-danger:hover:not(:disabled) {
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.35);
+}
+
+/* ---------- 状态条 ---------- */
+
+.ouch-status {
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--ouch-text-muted);
+  background: var(--ouch-surface-2);
+}
+
+.ouch-status.running {
+  color: var(--ouch-accent);
+  background: var(--ouch-hover);
+  font-weight: 500;
+}
+
+/* ---------- 日志 ---------- */
+
+.ouch-log {
+  border-radius: 10px;
+  padding: 8px 10px;
+  max-height: 150px;
+  overflow-y: auto;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #a8e6cf;
+  background: rgba(18, 20, 30, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ouch-log .ouch-log-line:last-child {
+  color: #fff;
+}
