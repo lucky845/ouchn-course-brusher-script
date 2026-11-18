@@ -11,7 +11,7 @@
       tabindex="0"
       :aria-expanded="isExpanded"
       aria-label="课程助手"
-      @mousedown.prevent="onDragStart"
+      @pointerdown.prevent="onDragStart"
       @click.stop="togglePanel"
       @keydown.enter.prevent="togglePanel"
     >
@@ -43,12 +43,15 @@
       </div>
 
       <!-- ===== 章节导航 ===== -->
-      <div v-show="activeTab === 'chapters'" class="tab-content">
+      <div v-show="activeTab === 'chapters'" class="tab-content ouch-scroll">
         <!-- 进度概览 -->
         <div class="progress-overview">
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: courseInfo?.overallProgress + '%' }"></div>
-          </div>
+          <progress
+            class="progress-bar ouch-progress-meter"
+            :value="courseInfo?.overallProgress || 0"
+            max="100"
+            aria-label="课程整体完成进度"
+          ></progress>
           <div class="progress-text">{{ courseInfo?.overallProgress || 0 }}% 已完成</div>
           <div class="progress-stats">
             <span class="stat-item completed">✅ {{ courseInfo?.completedChapters || 0 }}/{{ courseInfo?.totalChapters || 0 }}</span>
@@ -71,9 +74,12 @@
               当前: {{ currentActivityName }}
             </div>
             <div class="brushing-progress">
-              <div class="brushing-bar">
-                <div class="brushing-fill" :style="{ width: brushingProgress + '%' }"></div>
-              </div>
+              <progress
+                class="brushing-bar ouch-progress-meter"
+                :value="brushingProgress"
+                max="100"
+                aria-label="当前课程刷课进度"
+              ></progress>
               <span class="brushing-percent">{{ brushingProgress }}%</span>
             </div>
           </div>
@@ -348,10 +354,6 @@ function refreshCourse(): void {
   }
 }
 
-function goToChapter(index: number): void {
-  courseNavigatorService.scrollToChapter(index)
-}
-
 function goToActivity(chapterIndex: number, activityIndex: number): void {
   courseNavigatorService.scrollToActivity(chapterIndex, activityIndex)
 }
@@ -429,8 +431,6 @@ function goToSearchResult(result: SearchResult): void {
 // ===== 提醒方法 =====
 function addReminder(data: { title: string, type: 'daily' | 'weekly' | 'deadline', time: string, weekday: number, deadline: string, description: string }): void {
   if (!data.title.trim()) return
-
-  const courseName = (document.title || '').replace(/\s*[-_].*$/, '').trim() || '课程学习'
 
   if (data.type === 'deadline') {
     if (!data.deadline) return
@@ -520,6 +520,13 @@ onMounted(() => {
   border-radius: 50%;
 }
 
+.course-btn {
+  /* 拖拽手柄：触摸设备把拖动交给我们，并禁用球上的文字选中 */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .course-btn:hover {
   transform: scale(1.12);
   box-shadow: 0 12px 32px rgba(16, 185, 129, 0.45);
@@ -562,7 +569,7 @@ onMounted(() => {
   right: 0;
   top: 70px;
   width: 360px;
-  max-height: 70vh;
+  max-height: 70dvh;
   color: var(--ouch-text);
   border-radius: var(--ouch-radius-panel);
   box-shadow: var(--ouch-shadow-panel);
@@ -630,19 +637,6 @@ onMounted(() => {
   flex-direction: column;
 }
 
-.tab-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.tab-content::-webkit-scrollbar-track {
-  background: var(--ouch-surface-2);
-}
-
-.tab-content::-webkit-scrollbar-thumb {
-  background: var(--ouch-surface-2);
-  border-radius: 3px;
-}
-
 /* 进度概览 */
 .progress-overview {
   padding: 14px 18px;
@@ -650,21 +644,19 @@ onMounted(() => {
   border-bottom: 1px solid var(--ouch-line);
 }
 
+/* 轨道/填充来自 theme.css 的 .ouch-progress-meter，这里只保留本面板的尺寸与配色 */
 .progress-bar {
   width: 100%;
   height: 10px;
-  background: var(--ouch-surface-2);
   border-radius: 6px;
-  overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
-.progress-fill {
-  height: 100%;
+.progress-bar::-webkit-progress-value {
   background: linear-gradient(90deg, #10b981 0%, #14b8a6 50%, #06b6d4 100%);
-  border-radius: 6px;
-  transition: width 0.3s ease;
-  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
+}
+
+.progress-bar::-moz-progress-bar {
+  background: linear-gradient(90deg, #10b981 0%, #14b8a6 50%, #06b6d4 100%);
 }
 
 .progress-text {
@@ -783,16 +775,18 @@ onMounted(() => {
 .brushing-bar {
   flex: 1;
   height: 6px;
-  background: rgba(255, 255, 255, 0.34);
   border-radius: 3px;
-  overflow: hidden;
+  background: rgba(255, 255, 255, 0.34);
 }
 
-.brushing-fill {
-  height: 100%;
+.brushing-bar::-webkit-progress-value {
   background: var(--ouch-surface);
   border-radius: 3px;
-  transition: width 0.3s ease;
+}
+
+.brushing-bar::-moz-progress-bar {
+  background: var(--ouch-surface);
+  border-radius: 3px;
 }
 
 .brushing-percent {
@@ -893,6 +887,7 @@ onMounted(() => {
   padding: 12px 14px;
   background: var(--ouch-surface-2);
   cursor: pointer;
+  /* 点击展开章节：禁用选区，避免双击时选中标题 */
   user-select: none;
   transition: background 0.2s;
 }
@@ -1087,7 +1082,7 @@ onMounted(() => {
   .course-panel {
     width: calc(100vw - 20px);
     right: 10px;
-    max-height: 80vh;
+    max-height: 80dvh;
   }
 }
 </style>

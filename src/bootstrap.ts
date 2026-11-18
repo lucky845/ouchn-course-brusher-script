@@ -30,6 +30,21 @@ const PANEL_CONFIGS: Record<PanelTypeKey, PanelConfig> = {
 
 let isInitializing = false
 let initializedPanel = ''
+// 主题监听必须能被 unmountPanel 回收：面板会被反复重建（跳转、宿主被平台移除、30 秒兜底），
+// 每次重建都新挂一个 MutationObserver + matchMedia 监听而不释放，就会无限累积。
+let themeObserver: MutationObserver | null = null
+let themeMediaCleanup: (()=> void) | null = null
+
+function teardownThemeWatch(): void {
+  try {
+    themeObserver?.disconnect()
+  } catch {}
+  themeObserver = null
+  try {
+    themeMediaCleanup?.()
+  } catch {}
+  themeMediaCleanup = null
+}
 // 保留 Vue 应用实例：重建前必须 unmount，否则各组件 onUnmounted 里的清理（定时器/订阅/监听）全是死代码
 let appInstance: App<Element> | null = null
 let mountedHost: HTMLElement | null = null
@@ -65,12 +80,38 @@ function hasExistingPanel(): boolean {
          !!document.getElementById('mod-brushing-panel')
 }
 
+/**
+ * 把「生效中的主题」写到 Shadow 宿主元素上。
+ *
+ * 为什么要写在宿主上：Shadow DOM 里的原生 UI（滚动条、input、select）不受文档
+ * color-scheme 影响，而 :host-context() 只有 Chromium 支持。
+ * 宿主元素上的 data-ouch-theme 属性则是所有浏览器都能匹配的选择器，
+ * theme.css 用它驱动 :host 内的 color-scheme。
+ */
+function resolveThemeAttr(): string {
+  const rootMode = document.documentElement.getAttribute('data-ouch-theme')
+  if (rootMode === 'light' || rootMode === 'dark') return rootMode
+  // auto：跟随系统，这里把「当下」的结果固化成属性值
+  try {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  } catch {
+    return 'light'
+  }
+}
+
+function syncHostTheme(host: HTMLElement): void {
+  try {
+    host.setAttribute('data-ouch-theme', resolveThemeAttr())
+  } catch {}
+}
+
 function mountPanel(panelType: PanelTypeKey): void {
   const config = PANEL_CONFIGS[panelType]
   // 使用 Shadow DOM 容器，避免平台清理
   const host = document.createElement('div')
   host.id = config.id
   host.style.cssText = 'position:fixed!important;z-index:2147483647!important;pointer-events:auto!important;top:0;left:0;'
+  syncHostTheme(host)
   const shadow = host.attachShadow({ mode: 'open' })
   const container = document.createElement('div')
   container.id = 'panel-root'
@@ -115,6 +156,26 @@ function mountPanel(panelType: PanelTypeKey): void {
     appInstance = createApp(config.component)
     appInstance.mount(container)
     mountedHost = host
+
+    // 用户切换主题（html[data-ouch-theme] 变化）或系统偏好变化时，同步宿主的属性，
+    // 否则 Shadow DOM 里的原生控件会停留在旧配色。
+    teardownThemeWatch()
+    const observer = new MutationObserver(() => {
+      if (mountedHost === host) syncHostTheme(host)
+    })
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-ouch-theme']
+    })
+    themeObserver = observer
+    try {
+      const mql = window.matchMedia('(prefers-color-scheme: dark)')
+      const onChange = (): void => {
+        if (mountedHost === host) syncHostTheme(host)
+      }
+      mql.addEventListener('change', onChange)
+      themeMediaCleanup = () => mql.removeEventListener('change', onChange)
+    } catch {}
   } catch (e) {
     console.error('[刷课脚本] Vue 挂载失败:', e)
     host.textContent = '刷课脚本挂载失败: ' + (e as Error).message
@@ -128,6 +189,7 @@ function unmountPanel(): void {
   try {
     sidebarStatusInjector.destroy()
   } catch {}
+  teardownThemeWatch()
   try {
     if (appInstance) appInstance.unmount()
   } catch (e) {

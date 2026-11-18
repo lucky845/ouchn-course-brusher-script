@@ -13,7 +13,7 @@
 - **课程详情页助手**（v2.2.0 新增）：章节导航、进度概览、书签、搜索、提醒、跨面板联动
 - **侧边栏状态显示**（v2.2.1 新增）：在刷课页面侧边栏显示活动完成状态，通过 moduleId 匹配课程完成情况
 
-**版本**：v2.2.6
+**版本**：v2.2.8
 **构建产物**：`dist/ouchn-course-brusher-vue.user.js`
 
 ## 技术栈
@@ -101,6 +101,12 @@ src/
 1. **悬浮窗位置记忆**：只存储 Y 轴位置和边缘（left/right），不存储 X 轴具体数值
 2. **课程提取**：默认只提取当前学期课程，使用 `startsWith` 判断学期（不用 `includes`）
 3. **进度显示**：必须准确反映课程完成状态，数据质量验证（至少一门课程 progress > 0 或 pendingTasks > 0）
+4. **不要用 `:host-context()`**：只有 Chromium 实现，Firefox / Safari 会整条规则失效。主题靠自定义属性继承跨 Shadow 边界；需要原生控件跟随主题时用 `:host([data-ouch-theme])`
+5. **不要在 `:host` 上重复声明主题令牌**：`:host` 的自身声明会覆盖从文档继承的值，导致暗色分支在 Shadow DOM 内永远不生效
+6. **不要改 `document.documentElement` 的 `color-scheme`**：脚本注入的是别人家的页面，会连带改掉 Moodle 自身的原生 UI 与画布底色
+7. **滚动条用标准属性**：`scrollbar-color` + `scrollbar-width: thin`（共享类 `.ouch-scroll`）；`::-webkit-scrollbar` 只能作为 `@supports not (scrollbar-color: auto)` 里的回退
+8. **不要给 `innerHTML` 赋字符串**：页面文本一律走 `createElement` + `textContent`；`contentSearch` 与 `userNotice` 曾因此存在 mXSS
+9. **拖拽用 Pointer Events**：`pointerdown/pointermove/pointerup/pointercancel`，并过滤 `button !== 0`；`touch-action: none` 与 `user-select: none` 只加在手柄上，不要加在整个面板上（否则面板内文本无法选中复制）
 
 ### 工程约定
 
@@ -213,24 +219,25 @@ URL 工具函数：
 
 > **注意**：`/mod/*` 页面 URL 中的 `id` 是**模块 ID 而非课程 ID**。刷课页、侧边栏导航等场景必须用 `getCourseIdFromPage()`，绝不能直接取 URL 的 `id` 参数。
 
-### [src/styles/theme.css](src/styles/theme.css)（v2.2.6）
+### [src/styles/theme.css](src/styles/theme.css)（v2.2.8）
 
 面板统一设计令牌与共享组件类：
-- **令牌**：`--ouch-*` 共 28 个（主色 `--ouch-accent`/`--ouch-grad`、毛玻璃 `--ouch-glass-bg`/`--ouch-glass-border`/`--ouch-glass-blur`、表面 `--ouch-surface`/`--ouch-surface-2`、线条 `--ouch-line`/`--ouch-line-soft`、文字 `--ouch-text`/`--ouch-text-muted`/`--ouch-text-faint`、阴影 `--ouch-shadow-*`、圆角 `--ouch-radius-*`、语义色 `--ouch-ok`/`--ouch-warn`/`--ouch-danger`、缓动 `--ouch-ease`/`--ouch-ease-snap`）
-- **共享组件类**：`ouch-float-btn`、`ouch-panel`、`ouch-titlebar`、`ouch-btn-close`、`ouch-panel-body`、`ouch-card`、`ouch-section-title`、`ouch-progress-track`/`ouch-progress-fill`、`ouch-seg-group`/`ouch-seg-btn`、`ouch-switch`/`ouch-slider`、`ouch-btn`/`ouch-btn-danger`、`ouch-status`、`ouch-log`/`ouch-log-line`
+- **令牌**：`--ouch-*` 共 30 个（主色 `--ouch-accent`/`--ouch-grad`、毛玻璃 `--ouch-glass-bg`/`--ouch-glass-border`/`--ouch-glass-blur`、表面 `--ouch-surface`/`--ouch-surface-2`、线条 `--ouch-line`/`--ouch-line-soft`、文字 `--ouch-text`/`--ouch-text-muted`/`--ouch-text-faint`、阴影 `--ouch-shadow-*`、圆角 `--ouch-radius-*`、语义色 `--ouch-ok`/`--ouch-warn`/`--ouch-danger`、缓动 `--ouch-ease`/`--ouch-ease-snap`、开关 `--ouch-switch-track`/`--ouch-switch-knob`、滚动条 `--ouch-scrollbar-thumb`/`--ouch-scrollbar-track`）
+- **共享组件类**：`ouch-float-btn`、`ouch-panel`、`ouch-titlebar`、`ouch-btn-close`、`ouch-panel-body`、`ouch-card`、`ouch-section-title`、`ouch-scroll`（滚动容器）、`ouch-progress-meter`（原生 `<progress>` 外观）、`ouch-seg-group`/`ouch-seg-btn`、`ouch-switch`/`ouch-slider`、`ouch-btn`/`ouch-btn-danger`、`ouch-status`、`ouch-log`/`ouch-log-line`
 - **暗色优先级**：`html[data-ouch-theme="dark"]`（用户手选）> 系统 `prefers-color-scheme: dark` > 浅色
-- **作用域**：`src/bootstrap.ts` 会把构建内联的 CSS 复制进每个面板的 Shadow DOM，因此变量写在 `:root, :host`，面板内用 `:host-context` 读宿主属性
+- **作用域**：`src/bootstrap.ts` 会把构建内联的 CSS 复制进每个面板的 Shadow DOM。令牌**只声明在 `:root`**，Shadow 内元素自动继承；原生控件（滚动条/input/select）靠 `bootstrap` 写到宿主元素上的 `data-ouch-theme` + `:host([data-ouch-theme])` 驱动 `color-scheme`
+- **滚动条 / 进度条**：滚动容器加共享类 `.ouch-scroll`；进度用原生 `<progress class="ouch-progress-meter">`，外观由 `.ouch-progress-meter` 提供，不要再手写两层 `div`
 
-> **约定**：组件内 `<style>` 只写布局（尺寸、间距、flex），配色/圆角/阴影/毛玻璃一律引用 `var(--ouch-*)`；新增令牌时 `src/styles/theme.spec.mjs` 会校验暗色分支是否覆盖到。
+> **约定**：组件内 `<style>` 只写布局（尺寸、间距、flex），配色/圆角/阴影/毛玻璃一律引用 `var(--ouch-*)`；新增令牌时 `src/styles/theme.spec.mjs` 会校验暗色分支是否覆盖到，并拦截 `:host-context()`、缺失标准滚动条属性、进度条伪元素合并声明等回归。
 
 ### [src/composables/useDraggablePanel.ts](src/composables/useDraggablePanel.ts)
 
-拖拽逻辑复用：
-- `handleMouseDown` - 开始拖拽
-- `handleMouseMove` - 拖拽中
-- `handleMouseUp` - 结束拖拽，边缘吸附
-- `loadPosition` - 加载保存的位置
-- `savePosition` - 保存位置（只存 Y 和 edge）
+拖拽逻辑复用（基于 Pointer Events，鼠标/触摸/触控笔统一处理）：
+- `onDragStart` - 绑定到 `@pointerdown.prevent`，过滤非主键
+- `onDragMove` / `onDragEnd` - document 级 `pointermove`/`pointerup`/`pointercancel`，结束拖拽时边缘吸附
+- `didDragMove` / `resetDragMove` - 区分点击与拖拽
+- `handleResize` - 窗口尺寸变化后重新校正位置
+- 位置持久化由 `settingsStoreService` 的 `getPanelPosition` / `savePanelPosition` 负责（只存 Y 和 edge）
 
 ### [src/bootstrap.ts](src/bootstrap.ts)
 
@@ -329,4 +336,4 @@ URL 工具函数：
 
 ---
 
-**最后更新**：2026-11-09
+**最后更新**：2026-11-18

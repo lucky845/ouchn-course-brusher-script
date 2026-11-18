@@ -10,7 +10,7 @@
       tabindex="0"
       :aria-expanded="isExpanded"
       aria-label="学习助手"
-      @mousedown.prevent="onDragStart"
+      @pointerdown.prevent="onDragStart"
       @click.stop="togglePanel"
       @keydown.enter.prevent="togglePanel"
     >
@@ -25,7 +25,7 @@
       </div>
 
       <div class="panel-body ouch-panel-body">
-        <div class="scrollable-content">
+        <div class="scrollable-content ouch-scroll">
           <div class="stats-card">
             <div class="stat-item">
               <span class="stat-value">{{ completedCount }}/{{ totalCount }}</span>
@@ -80,13 +80,13 @@
                     </div>
                   </div>
                   <div class="course-progress">
-                    <div class="progress-bar">
-                      <div
-                        class="progress-fill"
-                        :class="{ completed: course.isCompleted }"
-                        :style="{ width: course.progress + '%' }"
-                      ></div>
-                    </div>
+                    <progress
+                      class="progress-bar ouch-progress-meter"
+                      :class="{ completed: course.isCompleted }"
+                      :value="course.progress"
+                      max="100"
+                      :aria-label="`${course.name} 学习进度`"
+                    ></progress>
                   </div>
                   <div class="course-footer">
                     <div class="course-meta">
@@ -306,6 +306,13 @@ onUnmounted(() => {
   border-radius: 50%;
 }
 
+.home-btn {
+  /* 拖拽手柄：触摸设备把拖动交给我们，并禁用球上的文字选中 */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .home-btn:hover {
   transform: scale(1.12);
   box-shadow: var(--ouch-shadow-float);
@@ -347,7 +354,7 @@ onUnmounted(() => {
   right: 0;
   top: 70px;
   width: 380px;
-  max-height: 70vh;
+  max-height: 70dvh;
   color: var(--ouch-text);
   border-radius: var(--ouch-radius-panel);
   box-shadow: var(--ouch-shadow-panel);
@@ -403,7 +410,7 @@ onUnmounted(() => {
   padding: 0;
   display: flex;
   flex-direction: column;
-  max-height: calc(70vh - 50px);
+  max-height: calc(70dvh - 50px);
   overflow: hidden;
 }
 
@@ -411,24 +418,6 @@ onUnmounted(() => {
   padding: 0;
   overflow-y: auto;
   flex: 1;
-}
-
-.scrollable-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.scrollable-content::-webkit-scrollbar-track {
-  background: var(--ouch-surface-2);
-  border-radius: 3px;
-}
-
-.scrollable-content::-webkit-scrollbar-thumb {
-  background: var(--ouch-surface-2);
-  border-radius: 3px;
-}
-
-.scrollable-content::-webkit-scrollbar-thumb:hover {
-  background: var(--ouch-text-faint);
 }
 
 .stats-card {
@@ -478,8 +467,11 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 10px 14px;
-  background: var(--ouch-surface-2);
+  /* 比 .semester-section 的 --ouch-surface-2 略深一档，
+   * 悬停时再亮一档，展开/收起才有可感知的反馈（原来基色和 hover 同色，等于没有反馈） */
+  background: var(--ouch-surface);
   cursor: pointer;
+  /* 点击展开/收起：禁用选区，避免双击标题时选中文字 */
   user-select: none;
   transition: background 0.2s;
   position: sticky;
@@ -488,7 +480,7 @@ onUnmounted(() => {
 }
 
 .semester-header:hover {
-  background: var(--ouch-surface-2);
+  background: var(--ouch-hover);
 }
 
 .semester-header-left {
@@ -646,23 +638,18 @@ onUnmounted(() => {
   width: 100%;
 }
 
+/* 轨道与填充由 theme.css 的 .ouch-progress-meter 统一提供，这里只调尺寸 */
 .progress-bar {
   width: 100%;
   height: 4px;
-  background: var(--ouch-surface-2);
   border-radius: 2px;
-  overflow: hidden;
 }
 
-.progress-fill {
-  height: 100%;
-  background: var(--ouch-grad);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-  min-width: 0;
+.progress-bar.completed::-webkit-progress-value {
+  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
 }
 
-.progress-fill.completed {
+.progress-bar.completed::-moz-progress-bar {
   background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
 }
 
@@ -757,7 +744,7 @@ onUnmounted(() => {
   .home-panel {
     width: calc(100vw - 20px);
     right: 10px;
-    max-height: 80vh;
+    max-height: 80dvh;
   }
 
   .course-item {

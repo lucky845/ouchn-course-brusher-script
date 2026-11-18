@@ -11,7 +11,7 @@
       <button class="search-btn" @click="doSearch">🔍</button>
     </div>
 
-    <div class="search-results">
+    <div class="search-results ouch-scroll">
       <div
         v-for="(result, index) in results"
         :key="index"
@@ -62,7 +62,7 @@ function doSearch(): void {
 .no-data {
   padding: 40px 20px;
   text-align: center;
-  color: #6b7280;
+  color: var(--ouch-text-muted);
 }
 
 .no-data p {
@@ -73,27 +73,37 @@ function doSearch(): void {
   display: flex;
   gap: 8px;
   padding: 10px 18px;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--ouch-line);
 }
 
 .search-input {
   flex: 1;
   padding: 8px 12px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--ouch-line);
   border-radius: 6px;
   font-size: 13px;
+  /* 表单控件不继承字体和配色，暗色下必须显式给 */
+  font-family: inherit;
+  background: var(--ouch-surface);
+  color: var(--ouch-text);
+}
+
+.search-input::placeholder {
+  color: var(--ouch-text-faint);
 }
 
 .search-input:focus {
   outline: none;
-  border-color: #10b981;
+  border-color: var(--ouch-accent);
+  box-shadow: 0 0 0 3px var(--ouch-hover);
 }
 
 .search-btn {
   padding: 8px 12px;
-  background: #10b981;
+  background: var(--ouch-grad);
   border: none;
   border-radius: 6px;
+  color: var(--ouch-on-accent);
   cursor: pointer;
 }
 
@@ -105,7 +115,7 @@ function doSearch(): void {
 
 .search-result-item {
   padding: 10px 12px;
-  background: #f8f9fa;
+  background: var(--ouch-surface-2);
   border-radius: 8px;
   margin-bottom: 8px;
   cursor: pointer;
@@ -113,30 +123,30 @@ function doSearch(): void {
 }
 
 .search-result-item:hover {
-  background: #eef0f3;
+  background: var(--ouch-surface);
 }
 
 .result-type {
   font-size: 10px;
-  color: #10b981;
+  color: var(--ouch-accent);
   margin-right: 8px;
 }
 
 .result-chapter {
   font-size: 12px;
   font-weight: 600;
-  color: #333;
+  color: var(--ouch-text);
 }
 
 .result-activity {
   font-size: 11px;
-  color: #666;
+  color: var(--ouch-text-muted);
   margin-left: 8px;
 }
 
 .result-match {
   font-size: 11px;
-  color: #999;
+  color: var(--ouch-text-faint);
   margin-top: 4px;
   overflow: hidden;
   text-overflow: ellipsis;

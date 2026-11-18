@@ -9,7 +9,7 @@
       </button>
     </div>
 
-    <div class="bookmark-list">
+    <div class="bookmark-list ouch-scroll">
       <div
         v-for="bookmark in bookmarks"
         :key="bookmark.id"
@@ -60,34 +60,36 @@ const emit = defineEmits<{
 .action-btn {
   flex: 1;
   padding: 6px 8px;
-  background: #e5e7eb;
-  border: none;
+  background: var(--ouch-surface-2);
+  border: 1px solid var(--ouch-line-soft);
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #374151;
+  color: var(--ouch-text);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .action-btn:hover {
-  background: #d1d5db;
-  color: #111827;
+  background: var(--ouch-hover);
+  color: var(--ouch-accent);
 }
 
 .action-btn.primary {
-  background: #10b981;
-  color: white;
+  background: var(--ouch-grad);
+  border-color: transparent;
+  color: var(--ouch-on-accent);
 }
 
 .action-btn.primary:hover {
-  background: #059669;
+  filter: brightness(1.08);
+  color: var(--ouch-on-accent);
 }
 
 .no-data {
   padding: 40px 20px;
   text-align: center;
-  color: #6b7280;
+  color: var(--ouch-text-muted);
 }
 
 .no-data p {
@@ -96,7 +98,7 @@ const emit = defineEmits<{
 
 .no-data .hint {
   font-size: 11px;
-  color: #9ca3af;
+  color: var(--ouch-text-faint);
   font-style: italic;
 }
 
@@ -104,7 +106,7 @@ const emit = defineEmits<{
   display: flex;
   gap: 8px;
   padding: 10px 18px;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--ouch-line);
 }
 
 .bookmark-list {
@@ -118,7 +120,7 @@ const emit = defineEmits<{
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: #f8f9fa;
+  background: var(--ouch-surface-2);
   border-radius: 8px;
   margin-bottom: 8px;
   cursor: pointer;
@@ -126,7 +128,7 @@ const emit = defineEmits<{
 }
 
 .bookmark-item:hover {
-  background: #eef0f3;
+  background: var(--ouch-surface);
 }
 
 .bookmark-info {
@@ -136,25 +138,25 @@ const emit = defineEmits<{
 .bookmark-title {
   font-size: 13px;
   font-weight: 600;
-  color: #333;
+  color: var(--ouch-text);
 }
 
 .bookmark-activity {
   font-size: 11px;
-  color: #666;
+  color: var(--ouch-text-muted);
   margin-top: 2px;
 }
 
 .bookmark-note {
   font-size: 11px;
-  color: #999;
+  color: var(--ouch-text-faint);
   font-style: italic;
   margin-top: 2px;
 }
 
 .bookmark-time {
   font-size: 10px;
-  color: #999;
+  color: var(--ouch-text-faint);
   margin-top: 4px;
 }
 

@@ -2,6 +2,54 @@
 
 所有版本更新记录，按发布时间倒序排列。
 
+## v2.2.8 (2026-11-18)
+
+**现代化写法与样式审计修复（modern-web-guidance）**
+
+对全项目做了一次现代 Web 平台写法审计，按 Google Chrome 的 modern-web-guidance 逐个核对并修复。
+
+**样式：跨浏览器正确性修复**
+
+- 🐛 **修复暗色主题在 Firefox / Safari 完全失效**：主题变量原本声明在 `:root, :host` 上，而 `:host` 的自身声明会覆盖从文档继承来的值，暗色分支在 Shadow DOM 内永远拿不到。改用 `:host-context()` 打补丁只能救 Chromium——该选择器 Firefox 与 Safari 均未实现。现改为「令牌只声明在 `:root`，靠自定义属性继承穿过 Shadow 边界」，并为 `theme.spec.mjs` 增加回归守卫
+- 🐛 **修复三个标签页暗色下出现白底深字**：书签 / 搜索 / 提醒三个子组件的样式仍是硬编码浅色（`#f8f9fa`、`#333` 等 45 处），暗色模式下内容区不可读。现全部改为 `var(--ouch-*)` 令牌
+- 🐛 **修复开关滑块不可见**：`.ouch-slider` 轨道与面板底色同为 `--ouch-surface-2`，滑块轮廓实际看不清。拆出 `--ouch-switch-track` / `--ouch-switch-knob`
+- 🐛 **修复滑块/轨道的暗色配色**：暗色分支补上滚动条令牌覆盖
+- 🎨 **滚动条改用标准属性**：`::-webkit-scrollbar` 只有 WebKit/Blink 认，Firefox 拿不到任何滚动条样式。改为 `scrollbar-color` + `scrollbar-width: thin`，旧内核写法收进 `@supports not (scrollbar-color: auto)` 回退块；并修复原滑块与轨道同色导致「看不清滚到哪」的对比度问题（现满足 3:1）
+- 🎨 **原生控件跟随主题**：新增 `:host([data-ouch-theme])` + `color-scheme`，让 Shadow DOM 内的滚动条、`input`、`select` 跟着主题走；`bootstrap.ts` 把生效中的主题写到宿主元素并监听切换/系统偏好变化。**不改 `document.documentElement` 的 `color-scheme`**，避免影响被注入的 Moodle 页面本身
+- 📐 **移动端视口单位**：面板/弹窗的 `vh` 全部改为 `dvh`，避免移动浏览器地址栏收起时面板底部被裁掉
+
+**语义与可访问性**
+
+- ♿ **进度条改用原生 `<progress>`**：原实现是两个 `div`，屏幕阅读器拿不到 `role="progressbar"` 与数值。现为原生元素 + `appearance: none` 自绘，WebKit 与 Firefox 伪元素分开声明（合并写会让整条规则失效）
+- ♿ **添加提醒改用原生 `<dialog>` + `showModal()`**：免费获得顶层渲染、页面 inert、焦点圈定与归还、Esc 关闭。补齐 `aria-labelledby`、`label for` 关联、`::backdrop` 样式、`overscroll-behavior` 滚动链隔离，并尊重 `prefers-reduced-motion`
+- ♿ **开关补 `role="switch"`**：原生 `switch` 属性目前仅 Safari 支持，改用 `role="switch"` + `aria-label`，四个开关在屏幕阅读器中正确播报为开关而非复选框
+
+**安全**
+
+- 🔒 **修复内容搜索的 mXSS**：`contentSearch` 把页面文本拼接后赋给 `innerHTML` 做高亮，页面中任何含 `<img onerror=...>` 的文本都会被当作 HTML 执行。改为 `createElement` + `textContent` 逐段拼装
+- 🔒 **修复提示浮层的 HTML 注入**：`userNotice` 的 `message` 直接拼进 `innerHTML`，改用 `textContent`
+- 🔒 **剪贴板回退链补强**：原实现在 `navigator.clipboard` 存在但**写入被拒**（非 HTTPS、权限被拒）时直接返回 `false`，用户点了复制没反应。现改为「标准 API 失败即降级 `execCommand`」，并保证临时 textarea 在任何异常路径下都被清理
+
+**交互**
+
+- 🖱️ **拖拽改用 Pointer Events**：`mousedown/mousemove/mouseup` → `pointerdown/pointermove/pointerup/pointercancel`，鼠标、触摸、触控笔统一处理；补 `button !== 0` 过滤（右键不再触发拖拽）与 `pointercancel` 处理（触摸被系统打断不再卡在拖拽态）
+- 🖱️ **拖拽手柄收敛**：`cursor: grab` / `touch-action: none` / `user-select: none` 从整个面板收敛到悬浮球手柄上——此前整个面板都禁用了选区，**面板里的日志和题目文本无法选中复制**；触摸设备上也不会再把拖动误判成页面滚动
+
+**自查中修掉的本轮回归**
+
+- 🐛 **面板重建时监听泄漏**：主题的 `MutationObserver` + `matchMedia` 监听只挂不释放，面板每次重建（跳转 / 宿主被平台清理 / 30 秒兜底）就累积一份。现改为 `mountPanel` 挂之前先 teardown、`unmountPanel` 也 teardown，两条路径都堵死
+- 🐛 **取消提醒后草稿残留**：改成 `<dialog>` 时把重置放进了 `@close`，取消路径没有显式清理，重新打开会带回上次输入。现拆出 `resetDraft()`，取消/提交两条路径显式调用，`@close` 作为 Esc 的兜底
+- 🐛 **开关令牌从未定义**：`--ouch-switch-track` / `--ouch-switch-knob` 只写在使用处并带 fallback，导致两种主题下都退回到浅色常量。现已补齐明暗两套定义，并按 4.76:1 对比度取值
+- 🐛 **拖拽光标反馈丢失**：`cursor: grab` 移到手柄后，手柄自身的光标覆盖了外层 `.dragging` 的 `grabbing`，拖拽中不再变成抓手。现按 `.dragging .handle` 单独设置
+- 🐛 **学期标题 hover 无反馈**：基色与 hover 色落在同一个令牌上，等于没有反馈。hover 改用 `--ouch-hover`
+
+**测试**
+
+- 🧪 **测试从 30 例增加到 63 例**：新增 mXSS 回归（`contentSearch`、`userNotice`）、剪贴板回退链、指针拖拽（含右键/取消/吸附/解绑）、主题跨 Shadow DOM 继承与样式写法守卫、面板监听生命周期、添加提醒对话框（取消丢草稿 / 提交重置 / label 关联）
+- 🧪 **主题守卫加强**：`theme.spec.mjs` 现在会拦截 `:host-context()` 回归、缺少标准滚动条属性、`::-webkit-scrollbar` 写在 `@supports` 之外、进度条伪元素合并声明，以及**带 fallback 的 `var(--x, …)` 引用了未定义令牌**——正是这个盲区让开关令牌问题漏了过去
+- 🧪 **vitest 挂上 `@vitejs/plugin-vue`**：对话框状态与监听生命周期这类回归只有真实组件挂载才守得住
+- 🧹 **清理无用代码**：`FloatingPanel` 的 `PanelEdge` 导入与 `snapEdge` 解构（注释声称在用、实际没有）、`CoursePanel` 未被模板引用的 `goToChapter()` 与未使用的 `courseName` 局部变量；lint 警告从 62 降到 58
+
 ## v2.2.7 (2026-11-09)
 
 **界面美化（毛玻璃 + 暗色）**

@@ -11,7 +11,7 @@
       tabindex="0"
       :aria-expanded="isOpen"
       aria-label="刷课助手"
-      @mousedown.prevent="onDragStart"
+      @pointerdown.prevent="onDragStart"
       @click.stop="onBtnClick"
       @keydown.enter.prevent="onBtnClick"
     >
@@ -40,9 +40,12 @@
             <span class="progress-count">{{ stats.current }} / {{ stats.total }}</span>
             <span class="progress-percent">{{ stats.percentage }}%</span>
           </div>
-          <div class="progress-bar ouch-progress-track">
-            <div class="progress-fill ouch-progress-fill" :style="{ width: stats.percentage + '%' }"></div>
-          </div>
+          <progress
+            class="progress-bar ouch-progress-meter"
+            :value="stats.percentage"
+            max="100"
+            aria-label="本次刷课进度"
+          ></progress>
           <div class="progress-info">
             <span>📚 本次 {{ stats.itemsDone }} 个</span>
             <span v-if="isRunning || stats.elapsedTime.length > 0"> ⏱ {{ stats.elapsedTime }}</span>
@@ -87,28 +90,52 @@
           <div class="toggle-row">
             <span>🔇 静音刷课</span>
             <label class="switch ouch-switch">
-              <input v-model="mutedOn" type="checkbox" @change="onToggleMuted" />
+              <input
+                v-model="mutedOn"
+                type="checkbox"
+                role="switch"
+                aria-label="静音刷课"
+                @change="onToggleMuted"
+              />
               <span class="slider ouch-slider"></span>
             </label>
           </div>
           <div class="toggle-row">
             <span>🔒 防息屏</span>
             <label class="switch ouch-switch">
-              <input v-model="wakeLockOn" type="checkbox" @change="onToggleWakeLock" />
+              <input
+                v-model="wakeLockOn"
+                type="checkbox"
+                role="switch"
+                aria-label="防息屏"
+                @change="onToggleWakeLock"
+              />
               <span class="slider ouch-slider"></span>
             </label>
           </div>
           <div class="toggle-row">
             <span>🛡️ 防检测</span>
             <label class="switch ouch-switch">
-              <input v-model="antiDetectionOn" type="checkbox" @change="onToggleAntiDetection" />
+              <input
+                v-model="antiDetectionOn"
+                type="checkbox"
+                role="switch"
+                aria-label="防检测"
+                @change="onToggleAntiDetection"
+              />
               <span class="slider ouch-slider"></span>
             </label>
           </div>
           <div class="toggle-row">
             <span>▶️ 启用脚本</span>
             <label class="switch ouch-switch">
-              <input type="checkbox" :checked="isRunning" @change="onToggleRunning" />
+              <input
+                type="checkbox"
+                role="switch"
+                aria-label="启用脚本"
+                :checked="isRunning"
+                @change="onToggleRunning"
+              />
               <span class="slider ouch-slider"></span>
             </label>
           </div>
@@ -169,7 +196,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { settingsStoreService } from '../services/settingsStore'
-import { SpeedMode, PanelType, PanelEdge, type ThemeMode } from '../types'
+import { SpeedMode, PanelType, type ThemeMode } from '../types'
 import { videoManagerService } from '../services/videoManager'
 import { wakeLockService } from '../services/wakeLock'
 import { antiDetectionService } from '../services/antiDetection'
@@ -192,10 +219,8 @@ const {
   isDragging,
   onDragStart,
   didDragMove,
-  resetDragMove,
-  snapEdge
+  resetDragMove
 } = useDraggablePanel(PanelType.FLOATING, BTN_WIDTH, BTN_HEIGHT, MARGIN, DRAG_THRESHOLD)
-// 保留本地引用，供 onMounted 中 edge 判断逻辑使用（无实际重定义冲突）
 
 // ===== 状态 =====
 const isOpen = ref(false)
@@ -835,10 +860,19 @@ onUnmounted(() => {
   left: 0;
   top: 0;
   z-index: 999999 !important;
-  cursor: grab;
-  user-select: none;
-  -webkit-user-select: none;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+/*
+ * 拖拽手柄（悬浮球）：只有在手柄上才禁用选区与浏览器默认手势。
+ * 写在整个面板上会让面板里的日志文本、题目内容全部无法选中复制。
+ * touch-action: none 让触摸设备把拖动交给我们，而不是被浏览器当成滚动。
+ */
+.float-btn {
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .ouchn-brusher.snapping {
@@ -846,8 +880,12 @@ onUnmounted(() => {
 }
 
 .ouchn-brusher.dragging {
-  cursor: grabbing;
   z-index: 999999 !important;
+}
+
+/* 光标必须写在手柄上：手柄自己有 cursor: grab，会盖掉从 .dragging 继承下来的值 */
+.ouchn-brusher.dragging .float-btn {
+  cursor: grabbing;
 }
 
 .btn-emoji {
@@ -860,7 +898,7 @@ onUnmounted(() => {
   top: 0;
   right: 68px;
   width: 320px;
-  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
 }
 
@@ -893,6 +931,7 @@ onUnmounted(() => {
 
 .progress-bar {
   margin-bottom: 8px;
+  height: 8px;
 }
 
 .progress-info {
