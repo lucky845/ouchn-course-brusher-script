@@ -93,7 +93,14 @@ export function showUserNotice(message: string, options: NoticeOptions = {}): vo
   el.className = `notice type-${type}`
   const emojiMap = { info: '💡', warn: '⚠️', error: '⛔' }
   const emoji = emojiMap[type] || '💡'
-  el.innerHTML = `<span class="notice-emoji">${emoji}</span><span>${message}</span>`
+  // 用 createElement + textContent 而不是模板字符串 innerHTML：
+  // message 里带课程名 / 页面错误文本，拼进 HTML 会把它们当标记解析。
+  const emojiEl = document.createElement('span')
+  emojiEl.className = 'notice-emoji'
+  emojiEl.textContent = emoji
+  const textEl = document.createElement('span')
+  textEl.textContent = message
+  el.append(emojiEl, textEl)
   host.shadowRoot!.appendChild(el)
   noticeEl = el
 

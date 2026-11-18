@@ -24,8 +24,8 @@ export interface DraggablePanel {
   isDragging: Ref<boolean>
   /** 当前吸附的边缘（左/右） */
   snapEdge: PanelEdge
-  /** 鼠标按下事件处理器，绑定到 @mousedown.prevent */
-  onDragStart: (e: MouseEvent)=> void
+  /** 指针按下事件处理器，绑定到 @pointerdown.prevent */
+  onDragStart: (e: PointerEvent)=> void
   /** 点击事件辅助判断：是否刚刚发生了拖拽（点击前需检查） */
   didDragMove: ()=> boolean
   /** 点击事件辅助：重置 didDragMove 标志（在 click 处理末尾调用） */
@@ -81,16 +81,23 @@ export function useDraggablePanel(
   }
 
   // === 事件处理 ===
-  function onDragStart(e: MouseEvent): void {
+  // 用 Pointer Events 而不是 Mouse Events：
+  // 鼠标、触摸、触控笔走同一条路径，不必再单独补 touchstart/touchmove。
+  // 监听挂在 document 上（而不是用 setPointerCapture），因为拖拽过程中
+  // 面板会被 Vue 重新渲染甚至 v-show 切换，捕获会静默丢失。
+  function onDragStart(e: PointerEvent): void {
+    // 只响应主键（左键/单指触摸），否则右键菜单和停止触控笔也会开始拖拽
+    if (e.button !== 0) return
     isSnapping.value = false
     dragOffset = { x: e.clientX - position.value.x, y: e.clientY - position.value.y }
     isDragging.value = true
     _didDragMove = false
-    document.addEventListener('mousemove', onDragMove)
-    document.addEventListener('mouseup', onDragEnd)
+    document.addEventListener('pointermove', onDragMove)
+    document.addEventListener('pointerup', onDragEnd)
+    document.addEventListener('pointercancel', onDragEnd)
   }
 
-  function onDragMove(e: MouseEvent): void {
+  function onDragMove(e: PointerEvent): void {
     if (!isDragging.value) return
     const rawX = e.clientX - dragOffset.x
     const rawY = e.clientY - dragOffset.y
@@ -108,8 +115,9 @@ export function useDraggablePanel(
 
   function onDragEnd(): void {
     isDragging.value = false
-    document.removeEventListener('mousemove', onDragMove)
-    document.removeEventListener('mouseup', onDragEnd)
+    document.removeEventListener('pointermove', onDragMove)
+    document.removeEventListener('pointerup', onDragEnd)
+    document.removeEventListener('pointercancel', onDragEnd)
 
     if (_didDragMove) {
       const ww = window.innerWidth
@@ -141,8 +149,9 @@ export function useDraggablePanel(
   }
 
   function cleanup(): void {
-    document.removeEventListener('mousemove', onDragMove)
-    document.removeEventListener('mouseup', onDragEnd)
+    document.removeEventListener('pointermove', onDragMove)
+    document.removeEventListener('pointerup', onDragEnd)
+    document.removeEventListener('pointercancel', onDragEnd)
     window.removeEventListener('resize', handleResize)
   }
 

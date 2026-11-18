@@ -5,10 +5,18 @@
  * bootstrap.ts 会把构建内联的 CSS 复制进各面板的 Shadow DOM，
  * 所以这里用跨主题不变的类名前缀（ouch-*）承载视觉，组件内只保留布局。
  * 暗色不写整套重复样式，只覆盖变量；用户手动选择优先于系统偏好。
+ *
+ * 跨 Shadow DOM 的主题传递方式（重要）：
+ * 自定义属性是继承属性，会穿过 Shadow 边界。令牌只声明在文档的 :root 上，
+ * Shadow 内的元素通过宿主元素继承拿到同一套值。
+ * 绝不在 :host 上重新声明主题令牌——那样宿主元素的自身声明会覆盖继承值，
+ * 暗色分支在 Shadow DOM 内就永远不生效（此前用 :host-context() 打补丁，
+ * 但该选择器只有 Chromium 支持，Firefox / Safari 下暗色实际上是失效的）。
+ * 需要让原生 UI（滚动条、表单控件）跟随主题时，用 :host([data-ouch-theme])，
+ * 由 bootstrap.ts 把解析后的主题写到宿主元素上，这是全平台都支持的标准写法。
  */
 
-:root,
-:host {
+:root {
   --ouch-accent: #667eea;
   --ouch-accent-2: #764ba2;
   --ouch-grad: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -44,12 +52,41 @@
 
   --ouch-ease: cubic-bezier(0.4, 0, 0.2, 1);
   --ouch-ease-snap: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+
+  /* 滚动条：滑块与轨道必须分开（旧实现两者都用 --ouch-surface-2，滑块实际不可见）。
+   * 取色满足 WCAG 1.4.11 非文本对比度 ≥ 3:1，避免滑块看不清、不知道滚到哪。 */
+  --ouch-scrollbar-thumb: #6b7280;
+  --ouch-scrollbar-track: #f3f4f6;
+
+  /* 开关：未选中态的轨道与滑块。滑块是纯白，轨道必须够深才有 3:1 对比
+   * （#cbd5e1 只有 1.48:1，圆点几乎看不见；#64748b 是 4.76:1）。 */
+  --ouch-switch-track: #64748b;
+  --ouch-switch-knob: #fff;
 }
 
-/* 暗色：跟随系统 + 用户手动 */
+/*
+ * 原生控件配色（滚动条、复选框、time/datetime-local 输入框）。
+ * 声明在 :host 而不是 :root：脚本注入的是别人家的页面，
+ * 在 :root 上写 color-scheme 会把整个 Moodle 页面的原生 UI 和画布底色一起改掉。
+ */
+:host {
+  color-scheme: light;
+  accent-color: var(--ouch-accent);
+}
+
 @media (prefers-color-scheme: dark) {
-  :root:not([data-ouch-theme='light']),
-  :host-context(:root:not([data-ouch-theme='light'])) {
+  :host(:not([data-ouch-theme='light'])) {
+    color-scheme: dark;
+  }
+}
+
+:host([data-ouch-theme='dark']) {
+  color-scheme: dark;
+}
+
+/* 暗色：跟随系统 + 用户手动（只声明在 :root，靠继承传入 Shadow DOM） */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-ouch-theme='light']) {
     --ouch-glass-bg: rgba(26, 30, 42, 0.72);
     --ouch-glass-bg-strong: rgba(30, 34, 48, 0.9);
     --ouch-glass-border: rgba(255, 255, 255, 0.1);
@@ -64,11 +101,14 @@
     --ouch-shadow-float: 0 10px 30px rgba(0, 0, 0, 0.5);
     --ouch-shadow-panel: 0 18px 48px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3);
     --ouch-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25);
+    --ouch-scrollbar-thumb: #7a8496;
+    --ouch-scrollbar-track: rgba(255, 255, 255, 0.08);
+    --ouch-switch-track: rgba(255, 255, 255, 0.22);
+    --ouch-switch-knob: #e8ebf3;
   }
 }
 
-:root[data-ouch-theme='dark'],
-:host-context(:root[data-ouch-theme='dark']) {
+:root[data-ouch-theme='dark'] {
   --ouch-glass-bg: rgba(26, 30, 42, 0.72);
   --ouch-glass-bg-strong: rgba(30, 34, 48, 0.9);
   --ouch-glass-border: rgba(255, 255, 255, 0.1);
@@ -83,6 +123,10 @@
   --ouch-shadow-float: 0 10px 30px rgba(0, 0, 0, 0.5);
   --ouch-shadow-panel: 0 18px 48px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3);
   --ouch-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --ouch-scrollbar-thumb: #7a8496;
+  --ouch-scrollbar-track: rgba(255, 255, 255, 0.08);
+  --ouch-switch-track: rgba(255, 255, 255, 0.22);
+  --ouch-switch-knob: #e8ebf3;
 }
 
 /* ---------- 悬浮球 ---------- */
@@ -211,22 +255,6 @@
   margin-bottom: 10px;
 }
 
-/* ---------- 进度条 ---------- */
-
-.ouch-progress-track {
-  height: 8px;
-  border-radius: var(--ouch-radius-pill);
-  background: var(--ouch-surface-2);
-  overflow: hidden;
-}
-
-.ouch-progress-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--ouch-grad);
-  transition: width 0.4s var(--ouch-ease);
-}
-
 /* ---------- 分段控件 ---------- */
 
 .ouch-seg-group {
@@ -283,7 +311,7 @@
   position: absolute;
   inset: 0;
   border-radius: var(--ouch-radius-pill);
-  background: var(--ouch-surface-2);
+  background: var(--ouch-switch-track);
   border: 1px solid var(--ouch-line-soft);
   cursor: pointer;
   transition: background 0.25s var(--ouch-ease), border-color 0.25s var(--ouch-ease);
@@ -297,7 +325,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--ouch-switch-knob);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
   transition: transform 0.25s var(--ouch-ease);
 }
@@ -387,4 +415,89 @@
 
 .ouch-log .ouch-log-line:last-child {
   color: #fff;
+}
+
+/* ---------- 滚动容器 ---------- */
+
+/*
+ * 标准属性优先，::-webkit-scrollbar 只作为旧内核回退。
+ * 旧写法只用 ::-webkit-scrollbar，Firefox 完全拿不到任何滚动条样式。
+ */
+.ouch-scroll {
+  scrollbar-color: var(--ouch-scrollbar-thumb) var(--ouch-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+@supports not (scrollbar-color: auto) {
+  .ouch-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .ouch-scroll::-webkit-scrollbar-track {
+    background: var(--ouch-scrollbar-track);
+    border-radius: 3px;
+  }
+
+  .ouch-scroll::-webkit-scrollbar-thumb {
+    background: var(--ouch-scrollbar-thumb);
+    border-radius: 3px;
+  }
+}
+
+/* ---------- 进度条 ---------- */
+
+/*
+ * 用原生 <progress> 承载语义（屏幕阅读器有 role="progressbar" 且能播报数值），
+ * 外观用 appearance: none 全量自绘。
+ * ::-webkit-progress-value 与 ::-moz-progress-bar 不能合并写成一条规则，否则整条规则失效。
+ */
+.ouch-progress-meter {
+  appearance: none;
+  border: 0 solid;
+  overflow: clip;
+  display: block;
+  width: 100%;
+  height: 8px;
+  border-radius: var(--ouch-radius-pill);
+  background: var(--ouch-surface-2);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.ouch-progress-meter::-webkit-progress-bar {
+  background: transparent;
+}
+
+.ouch-progress-meter::-webkit-progress-value {
+  background: var(--ouch-grad);
+  border-radius: var(--ouch-radius-pill);
+  transition: inline-size 0.4s var(--ouch-ease);
+}
+
+.ouch-progress-meter::-moz-progress-bar {
+  background: var(--ouch-grad);
+  border-radius: var(--ouch-radius-pill);
+  transition: inline-size 0.4s var(--ouch-ease);
+}
+
+/* ---------- 功能面板通用 ---------- */
+
+/* 内容搜索高亮：标记由 contentSearch 注入到宿主页面，用 :where() 保证零特异性，
+ * 页面自己的 mark 样式仍然能覆盖它。 */
+:where(mark.course-search-highlight) {
+  background-color: #fef08a;
+  border-radius: 2px;
+  padding: 0 2px;
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(mark.course-search-highlight) {
+    animation: ouchSearchHighlightPulse 2s ease-out;
+  }
+}
+
+@keyframes ouchSearchHighlightPulse {
+  0% { background-color: #facc15; }
+  100% { background-color: #fef08a; }
 }

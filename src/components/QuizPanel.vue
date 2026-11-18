@@ -11,7 +11,7 @@
       tabindex="0"
       :aria-expanded="isOpen"
       aria-label="答题助手"
-      @mousedown.prevent="onDragStart"
+      @pointerdown.prevent="onDragStart"
       @click.stop="onBtnClick"
       @keydown.enter.prevent="onBtnClick"
     >
@@ -220,12 +220,17 @@ onMounted(() => {
   left: 0;
   top: 0;
   z-index: 999999 !important;
-  cursor: grab;
-  user-select: none;
-  -webkit-user-select: none;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --ouch-accent: #f5576c;
   --ouch-grad: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+/* 只有拖拽手柄（悬浮球）禁用选区，面板内的题目文本要能选中复制 */
+.quiz-btn {
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .quiz-panel.snapping {
@@ -233,6 +238,11 @@ onMounted(() => {
 }
 
 .quiz-panel.dragging {
+  cursor: grabbing;
+}
+
+/* 手柄自身的 cursor: grab 会覆盖继承值，拖拽中要在手柄上单独置为 grabbing */
+.quiz-panel.dragging .quiz-btn {
   cursor: grabbing;
 }
 
@@ -246,7 +256,7 @@ onMounted(() => {
   top: 0;
   right: 68px;
   width: 320px;
-  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
 }
 

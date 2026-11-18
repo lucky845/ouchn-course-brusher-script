@@ -194,41 +194,39 @@ export class ContentSearchService {
    * 高亮单个元素
    */
   private highlightElement(element: HTMLElement, matchedText: string): void {
-    // 创建一个高亮标记
-    const marker = document.createElement('mark')
-    marker.className = 'course-search-highlight'
-    marker.style.cssText = `
-      background-color: #fef08a;
-      border-radius: 2px;
-      padding: 0 2px;
-      animation: searchHighlightPulse 2s ease-out;
-    `
-
-    // 添加动画样式（如果还没有）
-    if (!document.getElementById('course-search-styles')) {
-      const style = document.createElement('style')
-      style.id = 'course-search-styles'
-      style.textContent = `
-        @keyframes searchHighlightPulse {
-          0% { background-color: #facc15; }
-          100% { background-color: #fef08a; }
-        }
-      `
-      document.head.appendChild(style)
-    }
+    // 高亮的外观（含动画）由 src/styles/theme.css 的 mark.course-search-highlight 统一提供：
+    // 那里既在文档里生效，也会被 bootstrap 复制进面板 Shadow DOM。
+    // 这里不再动态 insert <style> 到 head —— 平台清理 head 节点后动画就没了，
+    // 而且同一段样式会随每次搜索重复注入。
 
     // 找到包含匹配文本的元素
     const target = element.querySelector('.instancename, .section-title, .sectionname, .activityname, a')
     const textEl: HTMLElement = (target || element) as HTMLElement
 
     // 包裹匹配文本
+    // 这里必须用 DOM 节点拼装，不能把页面文本塞进 innerHTML：
+    // textContent 里的 "&lt;img onerror=...&gt;" 一旦经过 innerHTML 解析就变成真节点，
+    // 等于把 Moodle 页面上任意可搜索到的字符串当 HTML 执行（mXSS）。
     const text = textEl.textContent || ''
-    if (text.includes(matchedText.replace(/^\.\.\.|\.\.\.$/g, ''))) {
+    const keyword = matchedText.replace(/^\.\.\.|\.\.\.$/g, '')
+    if (keyword && text.includes(keyword)) {
       const span = document.createElement('span')
-      span.innerHTML = text.replace(
-        new RegExp(`(${matchedText.replace(/^\.\.\.|\.\.\.$/g, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
-        '<mark class="course-search-highlight" style="background-color: #fef08a; border-radius: 2px; padding: 0 2px;">$1</mark>'
-      )
+      const pattern = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+      let lastIndex = 0
+      for (const match of text.matchAll(pattern)) {
+        const index = match.index ?? 0
+        if (index > lastIndex) {
+          span.appendChild(document.createTextNode(text.slice(lastIndex, index)))
+        }
+        const mark = document.createElement('mark')
+        mark.className = 'course-search-highlight'
+        mark.textContent = match[0]
+        span.appendChild(mark)
+        lastIndex = index + match[0].length
+      }
+      if (lastIndex < text.length) {
+        span.appendChild(document.createTextNode(text.slice(lastIndex)))
+      }
       textEl.textContent = ''
       textEl.appendChild(span)
       this.highlightMarkers.push(textEl)
